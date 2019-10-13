@@ -14,17 +14,17 @@ const RuntimeSource = `
 
 pub fun panic(message: string) {
 	if len(message) == 0 {
-		C::printf(c"\n");
+		C::printf(c"\n")
 	} else {
-		C::printf(c"panic: %.*s\n", len(message), &message[0]);
+		C::printf(c"panic: %.*s\n", len(message), &message[0])
 	}
-    C::exit(-1);
+    C::exit(-1)
 }
 
 pub type Option enum<T> {
     Some(T),
     None,
-};
+}
 
 pub fun (o: Option<T>) unwrap() T {
     match o {
@@ -32,23 +32,23 @@ pub fun (o: Option<T>) unwrap() T {
         None => panic("Option.unwrap: expected Some, have None"),
     }
 
-    a: T;
-    return a;
+    a: T
+    return a
 }
 
 type RawArray struct {
     size: uint,
     ptr: uintptr,
-};
+}
 
 pub fun makeArray<T>(ptr: ^T, size: uint) []T {
-	raw := RawArray{size: size, ptr: uintptr(ptr)};
-	return @(^[]T)(uintptr(^raw));
+	raw := RawArray{size: size, ptr: uintptr(ptr)}
+	return @(^[]T)(uintptr(^raw))
 }
 
 pub fun breakArray<T>(arr: []T) (uint, ^T) {
-	raw := @(^RawArray)(uintptr(^arr));
-	return (raw.size, (^T)(raw.ptr));
+	raw := @(^RawArray)(uintptr(^arr))
+	return (raw.size, (^T)(raw.ptr))
 }
 `
 

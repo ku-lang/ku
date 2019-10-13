@@ -161,6 +161,14 @@ func (v *parser) nextIs(typ lexer.TokenType) bool {
 	return next.Type == typ
 }
 
+func (v *parser) optional(typ lexer.TokenType, val string) *lexer.Token {
+	if v.tokenMatches(0, typ, val) {
+		return v.consumeToken()
+	} else {
+		return nil
+	}
+}
+
 func (v *parser) expect(typ lexer.TokenType, val string) *lexer.Token {
 	if !v.tokenMatches(0, typ, val) {
 		tok := v.peek(0)
@@ -555,9 +563,11 @@ func (v *parser) parseTypeDecl(isTopLevel bool) *TypeDeclNode {
 
 	typ := v.parseType(true, false, true)
 
-	if isTopLevel {
-		v.expect(lexer.Separator, ";")
-	}
+	/*
+		if isTopLevel {
+			v.expect(lexer.Separator, ";")
+		}
+	*/
 
 	res := &TypeDeclNode{
 		Name: NewLocatedString(name),
@@ -1134,13 +1144,21 @@ func (v *parser) parseBlock() *BlockNode {
 
 	var nodes []ParseNode
 	for {
-		node, is_cond := v.parseNode()
+		//node, is_cond := v.parseNode()
+		node, _ := v.parseNode()
+		/*
+			if v.tokenMatches(0, lexer.Separator, ";") {
+				v.consumeToken()
+			}
+		*/
 		if node == nil {
 			break
 		}
-		if !is_cond {
-			v.expect(lexer.Separator, ";")
-		}
+		/*
+			if !is_cond {
+				v.optional(lexer.Separator, ";")
+			}
+		*/
 		nodes = append(nodes, node)
 	}
 
