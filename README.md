@@ -16,6 +16,18 @@
 
 当前版本：v0.0.1
 
+已经实现的功能有：
+
+- 变量定义（默认不可变，可使用var关键字定义可变变量）
+- 函数定义
+- 调用C语言函数（需要先用`[c]`标注来声明）
+- 基于文件夹的模块化
+- 自定义类型（类似Go语言的type struct），定义方法
+- 接口，以及类似Go的接口实现方式
+- 基本的流程控制和循环
+- 基本的泛型支持
+- 基本的运行时与标准库[lib](://github.com/ku-lang/lib)，未来会持续扩充
+
 当前可运行的示例代码：
 
 ```ku
@@ -24,7 +36,7 @@ use std::io
 [c] fun printf(fmt: ^u8, ...)  int;
 
 fun hello() {
-  io::println("hello")
+  io::println("hello world")
 }
 
 fun add(a: int, b: int) int {
@@ -32,11 +44,14 @@ fun add(a: int, b: int) int {
 }
 
 pub fun main() int {
+  // call a user defined function
+  hello()
+
   // call std::io::println
   io::println("Hello, World!")
 
-  // call a user defined function
-  hello()
+  // call C functions directly
+  C::printf(c"%s,%s\n", c"abc", c"def")
 
   // a var is mutable
   var i := "abc"
@@ -44,18 +59,12 @@ pub fun main() int {
   i = "def"
   io::println(i)
 
+  // variable are not mutable by default
   a := 2
   io::printInt(add(a, 5))
   if a > 1 {
     hello()
   }
-
-  b := 5; c:= 6
-  io::printInt(add(b, c))
-  io::println("")
-
-  // call C functions directly
-  C::printf(c"%s,%s\n", c"abc", c"def")
 
   return 0
 }
@@ -63,8 +72,9 @@ pub fun main() int {
 
 # 近期计划
 
-- [ ] 将模块访问符号"::"改为"."。由于结构成员访问符号也是"."，因此需要将VariableAccessExpr和StructAccessExpr合并起来，并处理对应的Resolve/Inference环节。
 - [ ] 去掉变量的类型声明中的":"，改成类似Go语言的声明格式。即`var a: int`改为`var a int`；
+- [ ] 深入阅读Ark编译器的代码，理清流程，添加注释，写出一个编译器设计文档。
+- [ ] 将模块访问符号`"::"`改为`"."`。由于结构成员访问符号也是`"."`，因此需要将`VariableAccessExpr`和`StructAccessExpr`合并起来，并处理对应的Resolve/Inference环节。
 - [ ] 增加let关键字，表示不可变值的声明。
 - [ ] 修改方法定义格式，不再使用类似Go的格式，而是使用类似Kotlin的格式，即`fun Student.sayHello()`
 - [ ] 配合上一条，增加this关键字，用来表示当前对象。
@@ -76,6 +86,6 @@ pub fun main() int {
 
 # 鸣谢
 
-喾语言编译器ku的初始实现参考了[Ark编程语言](https://github.com/ark-lang/ark)，特此鸣谢。
+喾语言编译器ku的初始实现根源自[Ark编程语言](https://github.com/ark-lang/ark)，特此鸣谢。
 
-Ark编译器的LICENSE文件是[LICENSE_ARK](LICENSE_ARK)。
+Ark编译器的LICENSE文件参见[LICENSE_ARK](LICENSE_ARK)。
