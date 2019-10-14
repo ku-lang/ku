@@ -4,7 +4,6 @@
 
 “喾”取自于帝喾，他是中华始祖的三皇五帝之一，也是《山海经》中天帝帝俊的原型。
 
-
 # 设计目标
 
 1. 简洁：尽量减少代码冗余。二进制尺寸和运行时都尽量小。
@@ -16,6 +15,51 @@
 # 开发进度
 
 当前版本：v0.0.1
+
+当前可运行的示例代码：
+
+```ku
+use std::io
+
+[c] fun printf(fmt: ^u8, ...)  int;
+
+fun hello() {
+  io::println("hello")
+}
+
+fun add(a: int, b: int) int {
+  return a + b
+}
+
+pub fun main() int {
+  // call std::io::println
+  io::println("Hello, World!")
+
+  // call a user defined function
+  hello()
+
+  // a var is mutable
+  var i := "abc"
+  io::println(i)
+  i = "def"
+  io::println(i)
+
+  a := 2
+  io::printInt(add(a, 5))
+  if a > 1 {
+    hello()
+  }
+
+  b := 5; c:= 6
+  io::printInt(add(b, c))
+  io::println("")
+
+  // call C functions directly
+  C::printf(c"%s,%s\n", c"abc", c"def")
+
+  return 0
+}
+```
 
 # 鸣谢
 
