@@ -206,6 +206,7 @@ func (v *Context) parseFiles() {
 		}
 
 		modname := &ast.ModuleName{Parts: strings.Split(v.Input, "::")}
+		//modname := &ast.ModuleName{Parts: strings.Split(v.Input, ".")}
 		v.modulesToRead = append(v.modulesToRead, modname)
 	}
 

@@ -205,6 +205,22 @@ func (v *parser) parse() {
 func (v *parser) parseToplevelDirective() ParseNode {
 	defer un(trace(v, "toplevel-directive"))
 
+	// put this into a parseUseStatement function
+	if v.tokenMatches(0, lexer.Identifier, KEYWORD_USE) {
+		directive := v.consumeToken()
+
+		module := v.parseName()
+		if module == nil {
+			v.errPosSpecific(directive.Where.End(), "Expected name after use directive")
+		}
+
+		v.deps = append(v.deps, module)
+
+		res := &UseDirectiveNode{Module: module}
+		res.SetWhere(lexer.NewSpan(directive.Where.Start(), module.Where().End()))
+		return res
+	}
+
 	if !v.tokensMatch(lexer.Operator, "#", lexer.Identifier, "") {
 		return nil
 	}
@@ -216,18 +232,6 @@ func (v *parser) parseToplevelDirective() ParseNode {
 		library := v.expect(lexer.String, "")
 		res := &LinkDirectiveNode{Library: NewLocatedString(library)}
 		res.SetWhere(lexer.NewSpanFromTokens(start, library))
-		return res
-
-	case "use":
-		module := v.parseName()
-		if module == nil {
-			v.errPosSpecific(directive.Where.End(), "Expected name after use directive")
-		}
-
-		v.deps = append(v.deps, module)
-
-		res := &UseDirectiveNode{Module: module}
-		res.SetWhere(lexer.NewSpan(start.Where.Start(), module.Where().End()))
 		return res
 
 	default:
@@ -284,13 +288,13 @@ func (v *parser) parseDocComments() []*DocComment {
 func (v *parser) parseAttributes() AttrGroup {
 	defer un(trace(v, "attributes"))
 
-	if !v.tokensMatch(lexer.Operator, "#", lexer.Separator, "[") {
+	if !v.tokensMatch(lexer.Separator, "[") {
 		return nil
 	}
 	attrs := make(AttrGroup)
 
-	for v.tokensMatch(lexer.Operator, "#", lexer.Separator, "[") {
-		v.consumeTokens(2)
+	for v.tokensMatch(lexer.Separator, "[") {
+		v.consumeToken()
 		for {
 			attr := &Attr{}
 
@@ -1144,21 +1148,13 @@ func (v *parser) parseBlock() *BlockNode {
 
 	var nodes []ParseNode
 	for {
-		//node, is_cond := v.parseNode()
-		node, _ := v.parseNode()
-		/*
-			if v.tokenMatches(0, lexer.Separator, ";") {
-				v.consumeToken()
-			}
-		*/
+		node, is_cond := v.parseNode()
 		if node == nil {
 			break
 		}
-		/*
-			if !is_cond {
-				v.optional(lexer.Separator, ";")
-			}
-		*/
+		if !is_cond {
+			v.optional(lexer.Separator, ";")
+		}
 		nodes = append(nodes, node)
 	}
 
@@ -1321,7 +1317,7 @@ func (v *parser) parseType(doNamed bool, onlyComposites bool, mustParse bool) Pa
 		}
 	}()
 
-	attrs = v.parseAttributes()
+	// attrs = v.parseAttributes()
 
 	if !onlyComposites {
 		if v.tokenMatches(0, lexer.Identifier, KEYWORD_FUN) {

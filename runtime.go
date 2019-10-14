@@ -9,8 +9,8 @@ import (
 
 // TODO: Move this at a file and handle locating/specifying this file
 const RuntimeSource = `
-#[c] fun printf(fmt: ^u8, ...) int;
-#[c] fun exit(code: C::int);
+[c] fun printf(fmt: ^u8, ...) int;
+[c] fun exit(code: C::int);
 
 pub fun panic(message: string) {
 	if len(message) == 0 {
@@ -18,7 +18,7 @@ pub fun panic(message: string) {
 	} else {
 		C::printf(c"panic: %.*s\n", len(message), &message[0])
 	}
-    C::exit(-1)
+	C::exit(-1)
 }
 
 pub type Option enum<T> {

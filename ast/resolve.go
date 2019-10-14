@@ -188,6 +188,7 @@ func (v *Resolver) err(thing Locatable, err string, stuff ...interface{}) {
 
 func (v *Resolver) getIdent(loc Locatable, name UnresolvedName) *Ident {
 	// TODO: Decide whether we should actually allow shadowing a module
+	//fmt.Printf("[CurScope]:%#v\n", v.curScope)
 	ident := v.curScope.GetIdent(name)
 	if ident == nil {
 		ident = v.curSubmod.UseScope.GetIdent(name)
@@ -321,6 +322,7 @@ func (v *Resolver) ResolveNode(node *Node) {
 	case *VariableAccessExpr:
 		// TODO: Check if we can clean this up
 		// NOTE: Here we check whether this is actually a variable access or an enum member.
+		//fmt.Printf("vaexpr:%#v\n", n.Name)
 		if len(n.Name.ModuleNames) > 0 {
 			enumName, memberName := n.Name.Split()
 			ident := v.getIdent(n, enumName)
@@ -349,8 +351,11 @@ func (v *Resolver) ResolveNode(node *Node) {
 			}
 		}
 
+		//fmt.Printf("[try name 1]: %#v\n", n.Name)
 		ident := v.getIdent(n, n.Name)
+		//fmt.Printf("[try name]: %#v\n", n.Name)
 		if ident == nil {
+
 			// do nothing
 		} else if ident.Type == IDENT_FUNCTION {
 			fan := &FunctionAccessExpr{
