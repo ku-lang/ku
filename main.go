@@ -312,8 +312,8 @@ func (v *Context) parseFile(path string, module *ast.Module) {
 
 	// 进行语法分析（Parse），得到语法分析树。
 	// 注：这里的语法分析树（ParseTree）与后面的 AST语法树 是不同的。之后的构建阶段（Construction）会根据语法分析树构建出AST语法树
-	parsedFile, deps := parser.Parse(sourcefile)
-	module.Trees = append(module.Trees, parsedFile)
+	parseTree, deps := parser.Parse(sourcefile)
+	module.Trees = append(module.Trees, parseTree)
 
 	// Add dependencies to parse array
 	for _, dep := range deps {
