@@ -9,14 +9,16 @@ import (
 	"github.com/ku-lang/ku/util"
 )
 
+// Sourcefile 源文件
 type Sourcefile struct {
-	Path     string
-	Name     string
-	Contents []rune
-	NewLines []int
-	Tokens   []*Token
+	Path     string   // 文件路径
+	Name     string   // 文件名
+	Contents []rune   // 文件内容
+	NewLines []int    // 换行符列表
+	Tokens   []*Token // 所有的词法符号
 }
 
+// NewSourcfile 根据文件路径，获取文件名，读入文件内容，并返回一个新的“源文件”对象
 func NewSourcefile(filepath string) (*Sourcefile, error) {
 	// TODO, get this to handle the rare //file//shit
 	// cut out the filename from path
@@ -39,12 +41,15 @@ func NewSourcefile(filepath string) (*Sourcefile, error) {
 	return sf, nil
 }
 
+// GetLine 获取第line行内容，用于编译错误输出时打印错误对应的一行源码
 func (s *Sourcefile) GetLine(line int) string {
 	return string(s.Contents[s.NewLines[line]+1 : s.NewLines[line+1]])
 }
 
+// 默认的Tab宽度，用于错误输出
 const TabWidth = 4
 
+// MarkPos 标记一个位置，用于错误输出时，在错误行的错误位置下面显示^
 func (s *Sourcefile) MarkPos(pos Position) string {
 	buf := new(bytes.Buffer)
 
@@ -65,6 +70,7 @@ func (s *Sourcefile) MarkPos(pos Position) string {
 			buf.WriteRune(' ')
 		}
 	}
+	// 错误标记是绿色的粗体字，起到提示作用
 	buf.WriteString(util.TEXT_GREEN + util.TEXT_BOLD + "^" + util.TEXT_RESET)
 	buf.WriteRune('\n')
 
@@ -72,6 +78,7 @@ func (s *Sourcefile) MarkPos(pos Position) string {
 
 }
 
+// MarkSpan 标记一段错误，需要打印多个^符号，即^^^^^^
 func (s *Sourcefile) MarkSpan(span Span) string {
 	// if the span is just one character, use MarkPos instead
 	spanEnd := span.End()
