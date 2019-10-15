@@ -13,13 +13,15 @@ import (
 	"github.com/ku-lang/ku/util"
 )
 
+// lexer 词法分析器
 type lexer struct {
-	input            *Sourcefile
-	startPos, endPos int
-	curPos           Position
-	tokStart         Position
+	input            *Sourcefile // 输入文件
+	startPos, endPos int         // 在分析过程中用来定位每个Token在代码字符串中的起始和结束位置
+	curPos           Position    // 当前位置
+	tokStart         Position    // token的开始位置
 }
 
+// errPos 输出错误信息，打印错误位置，并退出程序
 func (v *lexer) errPos(pos Position, err string, stuff ...interface{}) {
 	log.Errorln("lexer", util.TEXT_RED+util.TEXT_BOLD+"error:"+util.TEXT_RESET+" [%s:%d:%d] %s",
 		pos.Filename, pos.Line, pos.Char, fmt.Sprintf(err, stuff...))
@@ -29,10 +31,12 @@ func (v *lexer) errPos(pos Position, err string, stuff ...interface{}) {
 	os.Exit(1)
 }
 
+// err errPos的语法糖
 func (v *lexer) err(err string, stuff ...interface{}) {
 	v.errPos(v.curPos, err, stuff...)
 }
 
+// peek 提前窥看ahead个字节，但分析器并不前进，这些字节仍然可以继续进行其他分析
 func (v *lexer) peek(ahead int) rune {
 	if ahead < 0 {
 		panic(fmt.Sprintf("Tried to peek a negative number: %d", ahead))
@@ -44,6 +48,7 @@ func (v *lexer) peek(ahead int) rune {
 	return v.input.Contents[v.endPos+ahead]
 }
 
+// consume 消化一个字符。当分析器分析过一个字符，并转化为token之后，调用该函数，前进一步，不再需要这个字符了
 func (v *lexer) consume() {
 	v.curPos.Char++
 	if v.peek(0) == '\n' {
@@ -55,6 +60,7 @@ func (v *lexer) consume() {
 	v.endPos++
 }
 
+// expect 期望一个字符。如果接下来的字符不符合期望，则报错并退出。
 func (v *lexer) expect(r rune) {
 	if v.peek(0) == r {
 		v.consume()
@@ -63,6 +69,7 @@ func (v *lexer) expect(r rune) {
 	}
 }
 
+// 
 func (v *lexer) discardBuffer() {
 	v.startPos = v.endPos
 

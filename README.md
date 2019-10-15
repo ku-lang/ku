@@ -70,6 +70,16 @@ pub fun main() int {
 }
 ```
 
+# 文档
+
+喾语言相关的文档放在[ku-lang/docs](https://github.com/ku-lang/docs)中，包括以下几个文档：
+
+- [0%] [语言设计](https://github.com/ku-lang/docs/design/intro.md)
+- [5%] [代码导读](https://github.com/ku-lang/docs/coding/intro.md)
+- [0%] [教程](https://github.com/ku-lang/docs/tutorial/intro.md)
+- [0%] [标准库](https://github.com/ku-lang/docs/lib/std/intro.md)
+- [0%] [书籍](https://github.com/ku-lang/docs/book/intro.md)
+
 # 近期计划
 
 - [ ] 去掉变量的类型声明中的":"，改成类似Go语言的声明格式。即`var a: int`改为`var a int`；
