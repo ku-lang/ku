@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/ku-lang/ku/ast"
 	"github.com/ku-lang/ku/codegen"
@@ -28,17 +28,22 @@ const (
 
 var startTime time.Time
 
+// 编译器程序入口
 func main() {
 	startTime = time.Now()
 
+	// 利用kingpin库解析命令参数，详情参见args.go
 	command := kingpin.MustParse(app.Parse(os.Args[1:]))
 	log.SetLevel(*logLevel)
 	log.SetTags(*logTags)
 
+	// 初始化编译环境
 	context := NewContext()
 
+	// 解析命令
 	switch command {
-	case buildCom.FullCommand():
+	case buildCom.FullCommand(): // build命令；编译代码
+		// 下面这些变量均来自于args，从kingpin解析而来
 		if *buildInput == "" {
 			setupErr("No input files passed.")
 		}
@@ -52,12 +57,12 @@ func main() {
 			os.Exit(1)
 		}
 
-		// build the files
+		// 主流程：编译代码文件
 		context.Build(*buildOutput, outputType, *buildCodegen, *buildOptLevel)
 
 		printFinishedMessage(startTime, buildCom.FullCommand(), 1)
 
-	case docgenCom.FullCommand():
+	case docgenCom.FullCommand(): // docgen命令：生成文档
 		context.Searchpaths = *docgenSearchpaths
 		context.Input = *docgenInput
 		context.Docgen(*docgenDir)
@@ -79,9 +84,12 @@ func setupErr(err string, stuff ...interface{}) {
 	os.Exit(util.EXIT_FAILURE_SETUP)
 }
 
+// 类型：编译环境
 type Context struct {
+	// 搜索路径：所有搜索路径之下的.ku文件都会进行编译
 	Searchpaths []string
 
+	// 输入文件：待编译的主文件。现在只支持一个文件（通常是main.ku）
 	Input string
 
 	moduleLookup *ast.ModuleLookup
@@ -91,6 +99,7 @@ type Context struct {
 	modulesToRead []*ast.ModuleName
 }
 
+// 初始化编译环境
 func NewContext() *Context {
 	res := &Context{
 		moduleLookup: ast.NewModuleLookup(""),
@@ -99,14 +108,16 @@ func NewContext() *Context {
 	return res
 }
 
+// Build build a .ku source file
+// 主流程：编译代码文件
 func (v *Context) Build(output string, outputType codegen.OutputType, usedCodegen string, optLevel int) {
-	// Start by loading the runtime
+	// 首先加载runtime。注：其实这个加载过程也是一个完整的编译过程。
 	runtimeModule := LoadRuntime()
 
-	// Parse the passed files
+	// 语法分析（其中也包含了词法分析），生成AST语法树
 	v.parseFiles()
 
-	// resolve
+	// 变量解析
 	hasMainFunc := false
 	log.Timed("resolve phase", "", func() {
 		for _, module := range v.modules {
@@ -120,20 +131,19 @@ func (v *Context) Build(output string, outputType codegen.OutputType, usedCodege
 		}
 	})
 
-	// and here we check if we should
-	// bother continuing any further...
+	// 如果没有找到主函数，直接退出
 	if !hasMainFunc {
 		log.Error("main", util.Red("error: ")+"main function not found\n")
 		os.Exit(1)
 	}
 
-	// type inference
+	// 类型推导
 	log.Timed("inference phase", "", func() {
 		for _, module := range v.modules {
 			for _, submod := range module.Parts {
 				ast.Infer(submod)
 
-				// Dump AST
+				// 打印AST
 				log.Debugln("main", "AST of submodule `%s/%s`:", module.Name, submod.File.Name)
 				for _, node := range submod.Nodes {
 					log.Debugln("main", "%s", node.String())
@@ -143,17 +153,18 @@ func (v *Context) Build(output string, outputType codegen.OutputType, usedCodege
 		}
 	})
 
-	// semantic analysis
+	// 语义分析
 	log.Timed("semantic analysis phase", "", func() {
 		for _, module := range v.modules {
 			semantic.SemCheck(module, *ignoreUnused)
 		}
 	})
 
-	// codegen
+	// 代码生成
 	if usedCodegen != "none" {
 		var gen codegen.Codegen
 
+		// 现在后端只有llvm
 		switch usedCodegen {
 		case "llvm":
 			gen = &LLVMCodegen.Codegen{
@@ -176,6 +187,7 @@ func (v *Context) Build(output string, outputType codegen.OutputType, usedCodege
 	}
 }
 
+// Docgen 生成代码文档
 func (v *Context) Docgen(dir string) {
 	v.parseFiles()
 
@@ -187,9 +199,13 @@ func (v *Context) Docgen(dir string) {
 	gen.Generate()
 }
 
-func (v *Context) parseFiles() {
-	if strings.HasSuffix(v.Input, ".ku") {
-		// Handle the special case of a single .ku file
+// parseFiles 对各个文件进行分析。
+// 分析过程包括：模块读取、文件读取、词法分析、语法分析、AST语法树构建
+unc (v *Context) parseFiles() {
+	
+	// 检查Input，并建立对应的模块，加入到待分析模块列表中
+	if strings.HasSuffix(v.Input, ".ku") { // 如果输入是单个文件。只支持.ku文件名 
+		// 如果只有一个文件，则将它放入 __main 模块中
 		modname := &ast.ModuleName{Parts: []string{"__main"}}
 		module := &ast.Module{
 			Name:    modname,
@@ -200,26 +216,29 @@ func (v *Context) parseFiles() {
 		v.parseFile(v.Input, module)
 
 		v.modules = append(v.modules, module)
-	} else {
+	} else { // 如果输入是一个文件夹
+		// 模块路径中不能包含'/', '.'和空格
 		if strings.ContainsAny(v.Input, `\/. `) {
 			setupErr("Invalid module name: %s", v.Input)
 		}
 
+		// 将整个文件作为一个模块加入待分析列表
 		modname := &ast.ModuleName{Parts: strings.Split(v.Input, "::")}
-		//modname := &ast.ModuleName{Parts: strings.Split(v.Input, ".")}
 		v.modulesToRead = append(v.modulesToRead, modname)
 	}
 
+	// 开始读取所有模块的文件，进行词法分析和语法分析
 	log.Timed("read/lex/parse phase", "", func() {
 		for i := 0; i < len(v.modulesToRead); i++ {
 			modname := v.
 				modulesToRead[i]
 
-			// Skip already loaded modules
+			// 如果模块已经读入，就不需要再次读入。
 			if _, err := v.moduleLookup.Get(modname); err == nil {
 				continue
 			}
 
+			// 找到模块对应的目录
 			fi, dirpath, err := v.findModuleDir(modname.ToPath())
 			if err != nil {
 				setupErr("Couldn't find module `%s`: %s", modname, err)
@@ -229,32 +248,37 @@ func (v *Context) parseFiles() {
 				setupErr("Expected path `%s` to be directory, was file.", dirpath)
 			}
 
+			// 将模块加入到已处理模块组中。
 			module := &ast.Module{
 				Name:    modname,
 				Dirpath: dirpath,
 			}
 			v.moduleLookup.Create(modname).Module = module
 
-			// Check module children
+			// 检查模块下的各个文件
 			childFiles, err := ioutil.ReadDir(dirpath)
 			if err != nil {
 				setupErr("%s", err.Error())
 			}
 
 			for _, childFile := range childFiles {
+				// 忽略掉非.ku文件
 				if strings.HasPrefix(childFile.Name(), ".") || !strings.HasSuffix(childFile.Name(), ".ku") {
 					continue
 				}
 
 				actualFile := filepath.Join(dirpath, childFile.Name())
+
+				// 对.ku文件进行分析（这个方法内部集成词法分析和语法分析）
 				v.parseFile(actualFile, module)
 			}
 
+			// 当前模块处理结束，加入到编译环境中
 			v.modules = append(v.modules, module)
 		}
 	})
 
-	// Check for cyclic dependencies (in modules)
+	// 检查模块中的循环依赖
 	log.Timed("cyclic dependency check", "", func() {
 		errs := v.depGraph.DetectCycles()
 		if len(errs) > 0 {
@@ -267,7 +291,7 @@ func (v *Context) parseFiles() {
 		}
 	})
 
-	// construction
+	// 构建AST语法树
 	log.Timed("construction phase", "", func() {
 		for _, module := range v.modules {
 			ast.Construct(module, v.moduleLookup)
@@ -275,17 +299,19 @@ func (v *Context) parseFiles() {
 	})
 }
 
+// parseFile 分析单个文件
 func (v *Context) parseFile(path string, module *ast.Module) {
-	// Read
+	// 读入文件内容
 	sourcefile, err := lexer.NewSourcefile(path)
 	if err != nil {
 		setupErr("%s", err.Error())
 	}
 
-	// Lex
+	// 进行词法分析（Lex），得到Token列表
 	sourcefile.Tokens = lexer.Lex(sourcefile)
 
-	// Parse
+	// 进行语法分析（Parse），得到语法分析树。
+	// 注：这里的语法分析树（ParseTree）与后面的 AST语法树 是不同的。之后的构建阶段（Construction）会根据语法分析树构建出AST语法树
 	parsedFile, deps := parser.Parse(sourcefile)
 	module.Trees = append(module.Trees, parsedFile)
 
@@ -305,6 +331,7 @@ func (v *Context) parseFile(path string, module *ast.Module) {
 	}
 }
 
+// findModuleDir 搜寻模块目录
 func (v *Context) findModuleDir(modulePath string) (fi os.FileInfo, path string, err error) {
 	for _, searchPath := range v.Searchpaths {
 		path := filepath.Join(searchPath, modulePath)
