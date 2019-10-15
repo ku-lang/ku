@@ -201,10 +201,10 @@ func (v *Context) Docgen(dir string) {
 
 // parseFiles 对各个文件进行分析。
 // 分析过程包括：模块读取、文件读取、词法分析、语法分析、AST语法树构建
-unc (v *Context) parseFiles() {
-	
+func (v *Context) parseFiles() {
+
 	// 检查Input，并建立对应的模块，加入到待分析模块列表中
-	if strings.HasSuffix(v.Input, ".ku") { // 如果输入是单个文件。只支持.ku文件名 
+	if strings.HasSuffix(v.Input, ".ku") { // 如果输入是单个文件。只支持.ku文件名
 		// 如果只有一个文件，则将它放入 __main 模块中
 		modname := &ast.ModuleName{Parts: []string{"__main"}}
 		module := &ast.Module{
