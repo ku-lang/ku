@@ -74,11 +74,11 @@ pub fun main() int {
 
 喾语言相关的文档放在[ku-lang/docs](https://github.com/ku-lang/docs)中，包括以下几个文档：
 
-- [0%] [语言设计](https://github.com/ku-lang/docs/design/intro.md)
-- [5%] [代码导读](https://github.com/ku-lang/docs/coding/intro.md)
-- [0%] [教程](https://github.com/ku-lang/docs/tutorial/intro.md)
-- [0%] [标准库](https://github.com/ku-lang/docs/lib/std/intro.md)
-- [0%] [书籍](https://github.com/ku-lang/docs/book/intro.md)
+- [0%] [语言设计](https://github.com/ku-lang/docs/blob/master/design/intro.md)
+- [5%] [代码导读](https://github.com/ku-lang/docs/blob/master/coding/intro.md)
+- [0%] [教程](https://github.com/ku-lang/docs/blob/master/tutorial/intro.md)
+- [0%] [标准库](https://github.com/ku-lang/docs/blob/master/lib/std/intro.md)
+- [0%] [书籍](https://github.com/ku-lang/docs/blob/master/book/intro.md)
 
 # 近期计划
 
