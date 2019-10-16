@@ -203,7 +203,7 @@ func (v *Context) Docgen(dir string) {
 // 分析过程包括：模块读取、文件读取、词法分析、语法分析、AST语法树构建
 func (v *Context) parseFiles() {
 
-	// 检查Input，并建立对应的模块，加入到待分析模块列表中
+	// 检查Input，如果是单个文件，就作为__main模块直接进行分析；如果是一个文件夹，建立对应的模块，并加入到待分析模块列表中
 	if strings.HasSuffix(v.Input, ".ku") { // 如果输入是单个文件。只支持.ku文件名
 		// 如果只有一个文件，则将它放入 __main 模块中
 		modname := &ast.ModuleName{Parts: []string{"__main"}}
@@ -213,6 +213,7 @@ func (v *Context) parseFiles() {
 		}
 		v.moduleLookup.Create(modname).Module = module
 
+		// 直接分析该文件
 		v.parseFile(v.Input, module)
 
 		v.modules = append(v.modules, module)
@@ -227,7 +228,7 @@ func (v *Context) parseFiles() {
 		v.modulesToRead = append(v.modulesToRead, modname)
 	}
 
-	// 开始读取所有模块的文件，进行词法分析和语法分析
+	// 读取所有待分析模块的文件，进行词法分析和语法分析
 	log.Timed("read/lex/parse phase", "", func() {
 		for i := 0; i < len(v.modulesToRead); i++ {
 			modname := v.

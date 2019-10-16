@@ -17,17 +17,21 @@ import (
 	"github.com/ku-lang/ku/util"
 )
 
+// parser 语法分析类，用于存放语法分析的环境
 type parser struct {
-	input        *lexer.Sourcefile
-	currentToken int
-	tree         *ParseTree
+	input        *lexer.Sourcefile // 输入，即词法分析的输出，包括源文件信息与Token列表
+	currentToken int               // 当前Token：语法分析逐个分析Token列表，因此需要记录当前所前进到的Token
+	tree         *ParseTree        // 分析结果：一个语法分析树
 
-	binOpPrecedences  map[BinOpType]int
-	curNodeTokenStart int
-	ruleStack         []string
-	deps              []*NameNode
+	binOpPrecedences  map[BinOpType]int // 二元操作符的优先读
+	curNodeTokenStart int               // 当前节点的起始Token
+	ruleStack         []string          // 规则堆栈，？？
+	deps              []*NameNode       // 深度，？？
 }
 
+// Parse 语法分析的主功能函数，由main.go调用
+// input 语法分析的输入是词法分析输出的一个Sourcefile对象，其中包括源文件以及所有的Token词号列表。
+// 该函数返回一个语法分析树（ParseTree）实例，以及个名字节点的列表
 func Parse(input *lexer.Sourcefile) (*ParseTree, []*NameNode) {
 	p := &parser{
 		input:            input,
@@ -92,6 +96,8 @@ func (v *parser) errPosSpecific(pos lexer.Position, err string, stuff ...interfa
 	os.Exit(util.EXIT_FAILURE_PARSE)
 }
 
+// rule operations
+
 func (v *parser) pushRule(name string) {
 	v.ruleStack = append(v.ruleStack, name)
 }
@@ -104,6 +110,7 @@ func (v *parser) dumpRules() {
 	log.Debugln("parser", strings.Join(v.ruleStack, " / "))
 }
 
+// peek 向前亏看ahead个Token。
 func (v *parser) peek(ahead int) *lexer.Token {
 	if ahead < 0 {
 		panic(fmt.Sprintf("Tried to peek a negative number: %d", ahead))
@@ -116,23 +123,27 @@ func (v *parser) peek(ahead int) *lexer.Token {
 	return v.input.Tokens[v.currentToken+ahead]
 }
 
+// consumeToken 消化一个Token，即分析器向前进一步
 func (v *parser) consumeToken() *lexer.Token {
 	ret := v.peek(0)
 	v.currentToken++
 	return ret
 }
 
+// consumeTokens 消化num个Token
 func (v *parser) consumeTokens(num int) {
 	for i := 0; i < num; i++ {
 		v.consumeToken()
 	}
 }
 
+// tokenMatches 判断前方第ahead个Token是否符合条件：类型是t，内容是content
 func (v *parser) tokenMatches(ahead int, t lexer.TokenType, contents string) bool {
 	tok := v.peek(ahead)
 	return tok != nil && tok.Type == t && (contents == "" || (tok.Contents == contents))
 }
 
+// tokensMatch 判断接下来多个Token是否符合给出的条件。参数args中，每两个参数是一组条件：分辨是类型和内容
 func (v *parser) tokensMatch(args ...interface{}) bool {
 	if len(args)%2 != 0 {
 		panic("passed uneven args to tokensMatch")
@@ -146,6 +157,7 @@ func (v *parser) tokensMatch(args ...interface{}) bool {
 	return true
 }
 
+// getPrecedence 获取二元操作符对应的优先级
 func (v *parser) getPrecedence(op BinOpType) int {
 	if p := v.binOpPrecedences[op]; p > 0 {
 		return p
@@ -153,6 +165,7 @@ func (v *parser) getPrecedence(op BinOpType) int {
 	return -1
 }
 
+// nextIs 判断下一个Token是否是typ类型
 func (v *parser) nextIs(typ lexer.TokenType) bool {
 	next := v.peek(0)
 	if next == nil {
@@ -161,6 +174,7 @@ func (v *parser) nextIs(typ lexer.TokenType) bool {
 	return next.Type == typ
 }
 
+// optional 如果下一个Token符合类型typ，内容val，则消化它；如果不符合，则忽略。用于某些可以出现也可以不出现的语法部件，例如函数定义时，可以指定返回类型，也可以不指定。
 func (v *parser) optional(typ lexer.TokenType, val string) *lexer.Token {
 	if v.tokenMatches(0, typ, val) {
 		return v.consumeToken()
@@ -169,6 +183,8 @@ func (v *parser) optional(typ lexer.TokenType, val string) *lexer.Token {
 	}
 }
 
+// expect 期待下一个Token必须符合类型typ，内容val。如果不符合，则报错退出。用于判断必须出现的语法组合。
+// 例如，定义函数时，在解析完函数名称后，下一个Token必须是一个'('。
 func (v *parser) expect(typ lexer.TokenType, val string) *lexer.Token {
 	if !v.tokenMatches(0, typ, val) {
 		tok := v.peek(0)
@@ -190,11 +206,12 @@ func (v *parser) expect(typ lexer.TokenType, val string) *lexer.Token {
 	return v.consumeToken()
 }
 
+// parse 语法分析器的主方法，开启分析的循环
 func (v *parser) parse() {
 	for v.peek(0) != nil {
-		if n := v.parseDecl(true); n != nil {
+		if n := v.parseDecl(true); n != nil { // 各种定义块，如函数定义，常量定义等
 			v.tree.AddNode(n)
-		} else if n := v.parseToplevelDirective(); n != nil {
+		} else if n := v.parseToplevelDirective(); n != nil { // 顶层指令，如use语句等
 			v.tree.AddNode(n)
 		} else {
 			v.err("Unexpected token at toplevel: `%s` (%s)", v.peek(0).Contents, v.peek(0).Type)
@@ -202,10 +219,12 @@ func (v *parser) parse() {
 	}
 }
 
+// parseToplevelDirective 分析顶层指令
 func (v *parser) parseToplevelDirective() ParseNode {
 	defer un(trace(v, "toplevel-directive"))
 
-	// put this into a parseUseStatement function
+	// 分析use语句。注：由于现在已把Ark的 #use 改为了直接用use，所以这段逻辑应当独立出去。
+	// use 语句现在只支持最简单的 use a.b.c.d 这样的形式
 	if v.tokenMatches(0, lexer.Identifier, KEYWORD_USE) {
 		directive := v.consumeToken()
 
@@ -221,14 +240,16 @@ func (v *parser) parseToplevelDirective() ParseNode {
 		return res
 	}
 
+	// 顶层指令应当以 # 开头
 	if !v.tokensMatch(lexer.Operator, "#", lexer.Identifier, "") {
 		return nil
 	}
 	start := v.expect(lexer.Operator, "#")
 
+	// 解析指令名称
 	directive := v.expect(lexer.Identifier, "")
 	switch directive.Contents {
-	case "link":
+	case "link": // 现在只支持 #link，之前还有 #use，但在喾语言中将它独立出去了。
 		library := v.expect(lexer.String, "")
 		res := &LinkDirectiveNode{Library: NewLocatedString(library)}
 		res.SetWhere(lexer.NewSpanFromTokens(start, library))
@@ -240,28 +261,7 @@ func (v *parser) parseToplevelDirective() ParseNode {
 	}
 }
 
-func (v *parser) parseNode() (ParseNode, bool) {
-	defer un(trace(v, "node"))
-
-	var ret ParseNode
-
-	is_cond := false
-
-	if decl := v.parseDecl(false); decl != nil {
-		ret = decl
-	} else if cond := v.parseConditionalStat(); cond != nil {
-		ret = cond
-		is_cond = true
-	} else if blockStat := v.parseBlockStat(); blockStat != nil {
-		ret = blockStat
-		is_cond = true
-	} else if stat := v.parseStat(); stat != nil {
-		ret = stat
-	}
-
-	return ret, is_cond
-}
-
+// parseDocComments 分析文档注释
 func (v *parser) parseDocComments() []*DocComment {
 	defer un(trace(v, "doccomments"))
 
@@ -285,6 +285,11 @@ func (v *parser) parseDocComments() []*DocComment {
 	return dcs
 }
 
+// parseAttributes 分析标注
+// 注意：现在标注只允许顶层定义块使用，支持如下格式：
+// 1. [key]， 例如 [c] 表示一个函数是C语言的extern函数
+// 2. [key=value]
+// 多个标注间用逗号分隔，例如：[a=1,b=2]
 func (v *parser) parseAttributes() AttrGroup {
 	defer un(trace(v, "attributes"))
 
@@ -351,13 +356,22 @@ func (v *parser) parseName() *NameNode {
 	return res
 }
 
+// parseDecl 解析各种定义语句。
+// 包括：
+//    - 类型定义 TypeDecl
+//    - 函数定义 FuncDecl
+//    - 变量定义 VarDecl （其实主要是常量）
+//    - 解构变量定义 DestructVarDecl 这个是支持多变量定义的特殊语法
 func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 	defer un(trace(v, "decl"))
 
 	var res ParseNode
+
+	// 先解析可选的文档注释和标注
 	docComments := v.parseDocComments()
 	attrs := v.parseAttributes()
 
+	// 解析pub属性
 	var pub bool
 	if isTopLevel {
 		if v.tokenMatches(0, lexer.Identifier, KEYWORD_PUB) {
@@ -366,6 +380,7 @@ func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 		}
 	}
 
+	// 解析不同类型的定义块
 	if typeDecl := v.parseTypeDecl(isTopLevel); typeDecl != nil {
 		res = typeDecl
 	} else if funcDecl := v.parseFuncDecl(isTopLevel); funcDecl != nil {
@@ -378,6 +393,7 @@ func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 		return nil
 	}
 
+	// 将开头解析的pub属性、文档注释和标注添加到解析结果中
 	res.(DeclNode).SetPublic(pub)
 
 	if len(docComments) != 0 {
@@ -551,28 +567,28 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 	return res
 }
 
+// parseTypeDecl 分析类型定义
 func (v *parser) parseTypeDecl(isTopLevel bool) *TypeDeclNode {
 	defer un(trace(v, "typdecl"))
 
+	// 类型定义以 type 开头
 	if !v.tokenMatches(0, lexer.Identifier, "type") {
 		return nil
 	}
 
 	startToken := v.consumeToken()
 
+	// 接着是类型的名称
 	name := v.expect(lexer.Identifier, "")
+	// 类型名称不能是关键字
 	if IsReservedKeyword(name.Contents) {
 		v.err("Cannot use reserved keyword `%s` as type name", name.Contents)
 	}
 
+	// 接着解析具体类型
 	typ := v.parseType(true, false, true)
 
-	/*
-		if isTopLevel {
-			v.expect(lexer.Separator, ";")
-		}
-	*/
-
+	// 根据解析结果构造语法节点
 	res := &TypeDeclNode{
 		Name: NewLocatedString(name),
 		Type: typ,
@@ -1138,6 +1154,28 @@ func (v *parser) parseBlockStat() *BlockStatNode {
 	return res
 }
 
+func (v *parser) parseNode() (ParseNode, bool) {
+	defer un(trace(v, "node"))
+
+	var ret ParseNode
+
+	is_cond := false
+
+	if decl := v.parseDecl(false); decl != nil {
+		ret = decl
+	} else if cond := v.parseConditionalStat(); cond != nil {
+		ret = cond
+		is_cond = true
+	} else if blockStat := v.parseBlockStat(); blockStat != nil {
+		ret = blockStat
+		is_cond = true
+	} else if stat := v.parseStat(); stat != nil {
+		ret = stat
+	}
+
+	return ret, is_cond
+}
+
 func (v *parser) parseBlock() *BlockNode {
 	defer un(trace(v, "block"))
 
@@ -1263,7 +1301,11 @@ func (v *parser) parseBinopAssignStat() ParseNode {
 	return res
 }
 
+// parseTypeReference 分析类型引用
+// 注：类型引用包含一个类型，以及泛型列表
+// 实例：HashMap<int, string>
 func (v *parser) parseTypeReference(doNamed bool, onlyComposites bool, mustParse bool) *TypeReferenceNode {
+	// 分析类型，注意这里的类型可以是任何类型，包括函数、数组等，参见parseType的定义。这样可以实现复杂的多层类型嵌套
 	typ := v.parseType(doNamed, onlyComposites, mustParse)
 	if typ == nil {
 		return nil
@@ -1274,6 +1316,7 @@ func (v *parser) parseTypeReference(doNamed bool, onlyComposites bool, mustParse
 		v.consumeToken()
 
 		for {
+			// 泛型列表中的每一项也是一个类型引用，因此可以支持泛型嵌套
 			typ := v.parseTypeReference(true, false, true)
 			if typ == nil {
 				v.err("Expected valid type as type parameter")
@@ -1303,6 +1346,7 @@ func (v *parser) parseTypeReference(doNamed bool, onlyComposites bool, mustParse
 	return res
 }
 
+// parseType 分析类型
 // NOTE onlyComposites does not affect doRefs.
 func (v *parser) parseType(doNamed bool, onlyComposites bool, mustParse bool) ParseNode {
 	defer un(trace(v, "type"))
@@ -1320,15 +1364,15 @@ func (v *parser) parseType(doNamed bool, onlyComposites bool, mustParse bool) Pa
 	// attrs = v.parseAttributes()
 
 	if !onlyComposites {
-		if v.tokenMatches(0, lexer.Identifier, KEYWORD_FUN) {
+		if v.tokenMatches(0, lexer.Identifier, KEYWORD_FUN) { // 函数类型
 			res = v.parseFunctionType()
-		} else if v.tokenMatches(0, lexer.Operator, "^") {
+		} else if v.tokenMatches(0, lexer.Operator, "^") { // 指针类型
 			res = v.parsePointerType()
-		} else if v.tokenMatches(0, lexer.Operator, "&") {
+		} else if v.tokenMatches(0, lexer.Operator, "&") { // 引用类型
 			res = v.parseReferenceType()
-		} else if v.tokenMatches(0, lexer.Separator, "(") {
+		} else if v.tokenMatches(0, lexer.Separator, "(") { // 元组类型
 			res = v.parseTupleType(mustParse)
-		} else if v.tokenMatches(0, lexer.Identifier, KEYWORD_INTERFACE) {
+		} else if v.tokenMatches(0, lexer.Identifier, KEYWORD_INTERFACE) { // 接口类型，这里类似Go的方式，用接口类型指代任何符合接口的类
 			res = v.parseInterfaceType()
 		}
 	}
@@ -1337,13 +1381,13 @@ func (v *parser) parseType(doNamed bool, onlyComposites bool, mustParse bool) Pa
 		return res
 	}
 
-	if v.tokenMatches(0, lexer.Separator, "[") {
+	if v.tokenMatches(0, lexer.Separator, "[") { // 数组
 		res = v.parseArrayType()
-	} else if v.tokenMatches(0, lexer.Identifier, KEYWORD_STRUCT) {
+	} else if v.tokenMatches(0, lexer.Identifier, KEYWORD_STRUCT) { // 结构体。注：如果要简化自定义结构体类型的定义，就要修改这里。
 		res = v.parseStructType(true)
-	} else if v.tokenMatches(0, lexer.Identifier, KEYWORD_ENUM) {
+	} else if v.tokenMatches(0, lexer.Identifier, KEYWORD_ENUM) { // 枚举类型
 		res = v.parseEnumType()
-	} else if doNamed && v.nextIs(lexer.Identifier) {
+	} else if doNamed && v.nextIs(lexer.Identifier) { // 普通类型名称。这个功能实际上就是类型别名：如 type MyInt int，实际上相当于D语言的 alias MyInt = int;
 		res = v.parseNamedType()
 	}
 
@@ -1432,6 +1476,8 @@ func (v *parser) parseInterfaceType() *InterfaceTypeNode {
 	return res
 }
 
+// parseStructType 解析结构体类型
+// 参数requireKeyword表示结构体前面必须有 struct 关键字
 func (v *parser) parseStructType(requireKeyword bool) *StructTypeNode {
 	defer un(trace(v, "structtype"))
 
@@ -1440,14 +1486,19 @@ func (v *parser) parseStructType(requireKeyword bool) *StructTypeNode {
 	var sigil *GenericSigilNode
 
 	if requireKeyword {
+		// struct 关键字
 		if !v.tokenMatches(0, lexer.Identifier, KEYWORD_STRUCT) {
 			return nil
 		}
 		startToken = v.consumeToken()
 
+		// struct可以是泛型的，这里解析泛型
 		sigil = v.parseGenericSigil()
+
+		// “{}"之间是结构体的成员
 		v.expect(lexer.Separator, "{")
 	} else {
+		// 如果不要求关键字，则结构体直接以 "{" 开始
 		if !v.tokenMatches(0, lexer.Separator, "{") {
 			return nil
 		}
@@ -1455,17 +1506,22 @@ func (v *parser) parseStructType(requireKeyword bool) *StructTypeNode {
 	}
 
 	var members []*StructMemberNode
+	// 循环解析结构体成员，直到遇到“}"
 	for {
+		// 遇到"}"结束
 		if v.tokenMatches(0, lexer.Separator, "}") {
 			break
 		}
 
+		// 解析一个结构体成员
 		member := v.parseStructMember()
 		if member == nil {
 			v.err("Expected valid member declaration in struct")
 		}
 		members = append(members, member)
 
+		// 结构体成员间以","分隔
+		// TODO：与Go语言类似，去掉","的限制
 		if v.tokenMatches(0, lexer.Separator, ",") {
 			v.consumeToken()
 		}
@@ -1478,29 +1534,37 @@ func (v *parser) parseStructType(requireKeyword bool) *StructTypeNode {
 	return res
 }
 
+// parseStructMember 解析一个结构体成员
+// 实例： a : int
+// TODO 去掉 ":"
 func (v *parser) parseStructMember() *StructMemberNode {
 	docs := v.parseDocComments()
 
+	// 必须是 "name:" 或 "pub name:" 开头
 	if !(v.tokensMatch(lexer.Identifier, "", lexer.Operator, ":") ||
 		v.tokensMatch(lexer.Identifier, KEYWORD_PUB, lexer.Identifier, "", lexer.Operator, ":")) {
 		return nil
 	}
 
 	var firstToken *lexer.Token
+
+	// 解析pub关键字
 	var isPublic bool
 	if v.tokenMatches(0, lexer.Identifier, KEYWORD_PUB) {
 		firstToken = v.consumeToken()
 		isPublic = true
 	}
 
+	// 解析成员名称
 	name := v.consumeToken()
 	if !isPublic {
 		firstToken = name
 	}
 
-	// consume ':'
+	// 消化':'
 	v.consumeToken()
 
+	// 解析成员类型
 	memType := v.parseTypeReference(true, false, true)
 	if memType == nil {
 		v.err("Expected valid type in struct member")
@@ -1512,14 +1576,18 @@ func (v *parser) parseStructMember() *StructMemberNode {
 	return res
 }
 
+// parseFunctionType 分析函数类型
+// 格式实例：fun(int, int) int
 func (v *parser) parseFunctionType() *FunctionTypeNode {
 	defer un(trace(v, "functiontype"))
 
+	// 函数类型以关键字fun开头
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_FUN) {
 		return nil
 	}
 	startToken := v.consumeToken()
 
+	// 接着是()包含的参数列表
 	if !v.tokenMatches(0, lexer.Separator, "(") {
 		v.err("Expected `(` after `func` keyword")
 	}
@@ -1528,16 +1596,21 @@ func (v *parser) parseFunctionType() *FunctionTypeNode {
 	var pars []*TypeReferenceNode
 	variadic := false
 
+	// 解析参数列表
 	for {
+		// 遇到")"时结束参数列表
 		if v.tokenMatches(0, lexer.Separator, ")") {
 			lastParens = v.consumeToken()
 			break
 		}
 
+		// 注意，这里的variadic是C风格的多参数，即  fun(a int, ...) 这样的。这种风格只用于与C语言的互操作。
+		// TODO: 未来需要支持类似Go/D风格的真正可变参数，即 fun(a int, b int...)
 		if variadic {
 			v.err("Variadic signifier must be the last argument in a variadic function")
 		}
 
+		// 连续三个...，表示可变参数
 		if v.tokensMatch(lexer.Separator, ".", lexer.Separator, ".", lexer.Separator, ".") {
 			v.consumeTokens(3)
 			if !variadic {
@@ -1546,6 +1619,7 @@ func (v *parser) parseFunctionType() *FunctionTypeNode {
 				v.err("Duplicate variadic signifier `...` in function header")
 			}
 		} else {
+			// 解析一个参数的类型
 			par := v.parseTypeReference(true, false, true)
 			if par == nil {
 				v.err("Expected type in function argument, found `%s`", v.peek(0).Contents)
@@ -1554,10 +1628,10 @@ func (v *parser) parseFunctionType() *FunctionTypeNode {
 			pars = append(pars, par)
 		}
 
-		if v.tokenMatches(0, lexer.Separator, ",") {
+		if v.tokenMatches(0, lexer.Separator, ",") { // 如果遇到逗号，说明后面还有参数，继续循环解析
 			v.consumeToken()
 			continue
-		} else if v.tokenMatches(0, lexer.Separator, ")") {
+		} else if v.tokenMatches(0, lexer.Separator, ")") { // 遇到)，参数列表结束
 			lastParens = v.consumeToken()
 			break
 		} else {
@@ -1565,6 +1639,7 @@ func (v *parser) parseFunctionType() *FunctionTypeNode {
 		}
 	}
 
+	// 解析返回类型
 	var returnType *TypeReferenceNode
 	returnType = v.parseTypeReference(true, false, true)
 
@@ -1584,6 +1659,8 @@ func (v *parser) parseFunctionType() *FunctionTypeNode {
 	return res
 }
 
+// parsePointerType 分析指针类型
+// TODO: 尝试将指针类型的操作符由^改为与C/C++/D/Go一致的*。我猜测Ark使用^是为了更简便地避免*在作为指针时与作为乘号时的歧义。
 func (v *parser) parsePointerType() *PointerTypeNode {
 	defer un(trace(v, "pointertype"))
 
@@ -1597,6 +1674,7 @@ func (v *parser) parsePointerType() *PointerTypeNode {
 	return res
 }
 
+// parsePointerType 分析引用类型
 func (v *parser) parseReferenceType() *ReferenceTypeNode {
 	defer un(trace(v, "referencetype"))
 
@@ -1610,20 +1688,24 @@ func (v *parser) parseReferenceType() *ReferenceTypeNode {
 	return res
 }
 
+// parsePointerlikeType 由于指针类型和引用类型的语法分析过程一致，所以把其实现合并到这个函数里了。
 func (v *parser) parsePointerlikeType(symbol string) (mutable bool, target *TypeReferenceNode, where lexer.Span) {
 	defer un(trace(v, "pointerliketype"))
 
+	// 首先匹配操作符（^或&）
 	if !v.tokenMatches(0, lexer.Operator, symbol) {
 		return false, nil, lexer.Span{}
 	}
 	startToken := v.consumeToken()
 
+	// 接着匹配var关键字
 	mutable = false
 	if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
 		v.consumeToken()
 		mutable = true
 	}
 
+	// 接着分析类型引用
 	target = v.parseTypeReference(true, false, true)
 	if target == nil {
 		v.err("Expected valid type after '%s' in pointer/reference type", symbol)
@@ -1633,14 +1715,18 @@ func (v *parser) parsePointerlikeType(symbol string) (mutable bool, target *Type
 	return
 }
 
+// parseTupleType 分析元组类型。元组类型是由()包含的多个项，每一项以逗号分隔，可以是不同的类型。
+// 实例：(int, string, Map<int, string>)
 func (v *parser) parseTupleType(mustParse bool) *TupleTypeNode {
 	defer un(trace(v, "tupletype"))
 
+	// 首先匹配"("
 	if !v.tokenMatches(0, lexer.Separator, "(") {
 		return nil
 	}
 	startToken := v.consumeToken()
 
+	// 接着匹配多个类型引用
 	var members []*TypeReferenceNode
 	for {
 		memberType := v.parseTypeReference(true, false, mustParse)
@@ -1654,12 +1740,14 @@ func (v *parser) parseTupleType(mustParse bool) *TupleTypeNode {
 		}
 		members = append(members, memberType)
 
+		// 类型之间以","分隔
 		if !v.tokenMatches(0, lexer.Separator, ",") {
 			break
 		}
 		v.consumeToken()
 	}
 
+	// 最后必须匹配到结束符号")"
 	endToken := v.expect(lexer.Separator, ")")
 
 	res := &TupleTypeNode{MemberTypes: members}
@@ -1667,21 +1755,26 @@ func (v *parser) parseTupleType(mustParse bool) *TupleTypeNode {
 	return res
 }
 
+// parseArrayType 解析数组类型
 func (v *parser) parseArrayType() *ArrayTypeNode {
 	defer un(trace(v, "arraytype"))
 
+	// 数组以"["开头
 	if !v.tokenMatches(0, lexer.Separator, "[") {
 		return nil
 	}
 	startToken := v.consumeToken()
 
+	// 数组长度：数字
 	length := v.parseNumberLit()
 	if length != nil && length.IsFloat {
 		v.err("Expected integer length for array type")
 	}
 
+	// 数组以”]”结束
 	v.expect(lexer.Separator, "]")
 
+	// 数组元素类型
 	memberType := v.parseTypeReference(true, false, true)
 	if memberType == nil {
 		v.err("Expected valid type in array type")
@@ -1697,6 +1790,7 @@ func (v *parser) parseArrayType() *ArrayTypeNode {
 	return res
 }
 
+// parseNamedType 解析简单类型名称
 func (v *parser) parseNamedType() *NamedTypeNode {
 	defer un(trace(v, "typereference"))
 
