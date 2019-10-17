@@ -381,13 +381,13 @@ func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 	}
 
 	// 解析不同类型的定义块
-	if typeDecl := v.parseTypeDecl(isTopLevel); typeDecl != nil {
+	if typeDecl := v.parseTypeDecl(isTopLevel); typeDecl != nil { // 类型定义，即type语句
 		res = typeDecl
-	} else if funcDecl := v.parseFuncDecl(isTopLevel); funcDecl != nil {
+	} else if funcDecl := v.parseFuncDecl(isTopLevel); funcDecl != nil { // 函数定义
 		res = funcDecl
-	} else if varDecl := v.parseVarDecl(isTopLevel); varDecl != nil {
+	} else if varDecl := v.parseVarDecl(isTopLevel); varDecl != nil { // 变量定义
 		res = varDecl
-	} else if varTupleDecl := v.parseDestructVarDecl(isTopLevel); varTupleDecl != nil {
+	} else if varTupleDecl := v.parseDestructVarDecl(isTopLevel); varTupleDecl != nil { // 多变量定义
 		res = varTupleDecl
 	} else {
 		return nil
@@ -407,6 +407,7 @@ func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 	return res
 }
 
+// parseFuncDecl 解析函数定义
 func (v *parser) parseFuncDecl(isTopLevel bool) *FunctionDeclNode {
 	fn := v.parseFunc(false, isTopLevel)
 	if fn == nil {
@@ -418,6 +419,7 @@ func (v *parser) parseFuncDecl(isTopLevel bool) *FunctionDeclNode {
 	return res
 }
 
+// parseLambdaExpr 解析lambda函数定义
 func (v *parser) parseLambdaExpr() *LambdaExprNode {
 	fn := v.parseFunc(true, false)
 	if fn == nil {
@@ -429,11 +431,13 @@ func (v *parser) parseLambdaExpr() *LambdaExprNode {
 	return res
 }
 
+// parseFunc 分析函数
 // If lambda is true, we're parsing an expression.
 // If lambda is false, we're parsing a proper function declaration.
 func (v *parser) parseFunc(lambda bool, topLevelNode bool) *FunctionNode {
 	defer un(trace(v, "func"))
 
+	// 函数头
 	funcHeader := v.parseFuncHeader(lambda)
 	if funcHeader == nil {
 		return nil
@@ -443,10 +447,10 @@ func (v *parser) parseFunc(lambda bool, topLevelNode bool) *FunctionNode {
 	var stat, expr ParseNode
 	var end lexer.Position
 
-	if v.tokenMatches(0, lexer.Separator, ";") {
+	if v.tokenMatches(0, lexer.Separator, ";") { // 直接结束。即函数声明。注：除了定义外部函数的情况，不应该出现没有函数体的函数定义。应该去掉这种情形。
 		terminator := v.consumeToken()
 		end = terminator.Where.End()
-	} else if v.tokenMatches(0, lexer.Operator, "=>") {
+	} else if v.tokenMatches(0, lexer.Operator, "=>") { // lambda表达式
 		v.consumeToken()
 
 		isCond := false
@@ -464,7 +468,7 @@ func (v *parser) parseFunc(lambda bool, topLevelNode bool) *FunctionNode {
 		if topLevelNode && !isCond {
 			v.expect(lexer.Separator, ";")
 		}
-	} else {
+	} else { // 函数体
 		body = v.parseBlock()
 		if body == nil {
 			v.err("Expected block after function declaration, or terminating semi-colon")
@@ -481,6 +485,8 @@ func (v *parser) parseFunc(lambda bool, topLevelNode bool) *FunctionNode {
 func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 	defer un(trace(v, "funcheader"))
 
+	// 函数头必须以fun关键字开头。
+	// TODO: 未来应当让lambda不需要使用fun，而是直接 (a int, b int) => a + b 即可
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_FUN) {
 		return nil
 	}
@@ -489,17 +495,21 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 	res := &FunctionHeaderNode{}
 
 	if !lambda {
+		// 方法的类名。
+		// 格式：fun (a: String) startsWidth(head string) bool
+		// TODO: 未来应当改为类似Kotlin的方法定义格式： fun String.startsWith(head: string) bool，不过这样需要增加关键字 this用来指代当前对象
 		// parses the function receiver if there is one.
 		if v.tokenMatches(0, lexer.Separator, "(") {
 			// we have a method receiver
 			v.consumeToken()
 
+			// static 方法，只有类名，没有对象名。实例 fun (String) make(len int) string
 			if v.tokensMatch(lexer.Identifier, "", lexer.Separator, ")") {
 				res.StaticReceiverType = v.parseNamedType()
 				if res.StaticReceiverType == nil {
 					v.errToken("Expected type name in method receiver, found `%s`", v.peek(0).Contents)
 				}
-			} else {
+			} else { // 普通方法，有对象名和类名
 				res.Receiver = v.parseVarDeclBody(true)
 				if res.Receiver == nil {
 					v.errToken("Expected variable declaration in method receiver, found `%s`", v.peek(0).Contents)
@@ -509,23 +519,26 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 			v.expect(lexer.Separator, ")")
 		}
 
-		// parses the function identifier/name
+		// 函数名
 		name := v.expect(lexer.Identifier, "")
 		res.Name = NewLocatedString(name)
 	}
 
+	// 函数名后面接着泛型声明
 	genericSigil := v.parseGenericSigil()
+
+	// 然后是参数列表，以(开头
 	v.expect(lexer.Separator, "(")
 
 	var args []*VarDeclNode
 	variadic := false
-	// parse the function arguments
+	// 解析函数参数，以逗号分隔，以)结尾
 	for {
 		if v.tokenMatches(0, lexer.Separator, ")") {
 			break
 		}
 
-		// parse our variadic sigil (three magical dots)
+		// 可变参数，即...
 		if v.tokensMatch(lexer.Separator, ".", lexer.Separator, ".", lexer.Separator, ".") {
 			v.consumeTokens(3)
 			if !variadic {
@@ -533,7 +546,7 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 			} else {
 				v.err("Duplicate `...` in function arguments")
 			}
-		} else {
+		} else { // 否则每个参数是一个变量定义块
 			arg := v.parseVarDeclBody(false)
 			if arg == nil {
 				v.err("Expected valid variable declaration in function args")
@@ -547,8 +560,10 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 		v.consumeToken()
 	}
 
+	// 参数列表结束
 	maybeEndToken := v.expect(lexer.Separator, ")")
 
+	// 解析返回类型。可能为空
 	var returnType *TypeReferenceNode
 	returnType = v.parseTypeReference(true, false, true)
 
@@ -708,16 +723,20 @@ func (v *parser) parseVarDecl(isTopLevel bool) *VarDeclNode {
 	return body
 }
 
+// parseVarDeclBody 解析变量声明块。用于普通变量的定义，也用于函数定义中的变量列表。
+// 实例：a: string
 func (v *parser) parseVarDeclBody(isReceiver bool) *VarDeclNode {
 	defer un(trace(v, "vardeclbody"))
 
 	startPos := v.currentToken
 
+	// 可修改变量，默认是不可修改的，因此需要加var来指定可修改
 	var mutable *lexer.Token
 	if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
 		mutable = v.consumeToken()
 	}
 
+	// 变量名接着一个：
 	if !v.tokensMatch(lexer.Identifier, "", lexer.Operator, ":") {
 		v.currentToken = startPos
 		return nil
@@ -728,17 +747,21 @@ func (v *parser) parseVarDeclBody(isReceiver bool) *VarDeclNode {
 	// consume ':'
 	v.consumeToken()
 
+	// 变量类型
 	varType := v.parseTypeReference(true, false, true)
 	if varType == nil && !v.tokenMatches(0, lexer.Operator, "=") {
 		v.err("Expected valid type in variable declaration")
 	}
 
+	// 赋值语句。
 	var value ParseNode
 	if v.tokenMatches(0, lexer.Operator, "=") {
 		v.consumeToken()
 
+		// =后面可能是一个结构体常量
 		value = v.parseCompositeLiteral()
 		if value == nil {
+			// 也可能是一个表达式
 			value = v.parseExpr()
 		}
 
@@ -770,10 +793,14 @@ func (v *parser) parseVarDeclBody(isReceiver bool) *VarDeclNode {
 	return res
 }
 
+// parseDestructVarDecl 解构变量声明语句。即多变量声明。
+// 实例：(a, b) := (1, 2)
+// 注：这里似乎没有变量的类型声明，难道只支持类型推导？
 func (v *parser) parseDestructVarDecl(isTopLevel bool) *DestructVarDeclNode {
 	defer un(trace(v, "destructvardecl"))
 	startPos := v.currentToken
 
+	// 以(开头
 	if !v.tokenMatches(0, lexer.Separator, "(") {
 		return nil
 	}
@@ -781,13 +808,16 @@ func (v *parser) parseDestructVarDecl(isTopLevel bool) *DestructVarDeclNode {
 
 	var names []LocatedString
 	var mutable []bool
+	// 循环解析多个变量声明
 	for {
+		// 解析var关键字
 		isMutable := false
 		if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
 			isMutable = true
 			v.consumeToken()
 		}
 
+		// 之后必须是变量名称
 		if !v.nextIs(lexer.Identifier) {
 			// TODO(#655):
 			//v.errPos("Expected identifier in tuple destructuring variable declaration, got %s", v.peek(0).Type)
@@ -799,14 +829,17 @@ func (v *parser) parseDestructVarDecl(isTopLevel bool) *DestructVarDeclNode {
 		names = append(names, NewLocatedString(name))
 		mutable = append(mutable, isMutable)
 
+		// 逗号分隔
 		if !v.tokenMatches(0, lexer.Separator, ",") {
 			break
 		}
 		v.consumeToken()
 	}
 
+	// )结尾
 	v.expect(lexer.Separator, ")")
 
+	// 接着必须是 := 符号
 	if !v.tokenMatches(0, lexer.Operator, ":") {
 		v.currentToken = startPos
 		return nil
@@ -814,6 +847,7 @@ func (v *parser) parseDestructVarDecl(isTopLevel bool) *DestructVarDeclNode {
 	v.expect(lexer.Operator, ":")
 	v.expect(lexer.Operator, "=")
 
+	// 解析变量值，它是一个表达式
 	value := v.parseExpr()
 	if value == nil {
 		v.err("Expected valid expression after tuple destructuring variable declaration")
@@ -828,55 +862,61 @@ func (v *parser) parseDestructVarDecl(isTopLevel bool) *DestructVarDeclNode {
 	return res
 }
 
+// parseConditionalStat 解析条件语句
 func (v *parser) parseConditionalStat() ParseNode {
 	defer un(trace(v, "conditionalstat"))
 
 	var res ParseNode
 
-	// conditional structures
-	if ifStat := v.parseIfStat(); ifStat != nil {
+	// 分别尝试不同的条件语句
+	if ifStat := v.parseIfStat(); ifStat != nil { // if 语句
 		res = ifStat
-	} else if matchStat := v.parseMatchStat(); matchStat != nil {
+	} else if matchStat := v.parseMatchStat(); matchStat != nil { // match 语句
 		res = matchStat
-	} else if loopStat := v.parseLoopStat(); loopStat != nil {
+	} else if loopStat := v.parseLoopStat(); loopStat != nil { // for 循环语句
 		res = loopStat
 	}
 
 	return res
 }
 
+// parseStat 解析普通语句
 func (v *parser) parseStat() ParseNode {
 	defer un(trace(v, "stat"))
 
 	var res ParseNode
 
-	if breakStat := v.parseBreakStat(); breakStat != nil {
+	if breakStat := v.parseBreakStat(); breakStat != nil { // break 语句
 		res = breakStat
-	} else if nextStat := v.parseNextStat(); nextStat != nil {
+	} else if nextStat := v.parseNextStat(); nextStat != nil { // next 语句
 		res = nextStat
-	} else if deferStat := v.parseDeferStat(); deferStat != nil {
+	} else if deferStat := v.parseDeferStat(); deferStat != nil { // defer 语句
 		res = deferStat
-	} else if returnStat := v.parseReturnStat(); returnStat != nil {
+	} else if returnStat := v.parseReturnStat(); returnStat != nil { // return 语句
 		res = returnStat
-	} else if callStat := v.parseCallStat(); callStat != nil {
+	} else if callStat := v.parseCallStat(); callStat != nil { // 函数调用语句
 		res = callStat
-	} else if assignStat := v.parseAssignStat(); assignStat != nil {
+	} else if assignStat := v.parseAssignStat(); assignStat != nil { // 赋值语句
 		res = assignStat
-	} else if binopAssignStat := v.parseBinopAssignStat(); binopAssignStat != nil {
+	} else if binopAssignStat := v.parseBinopAssignStat(); binopAssignStat != nil { // 二元赋值语句
 		res = binopAssignStat
 	}
 
 	return res
 }
 
+// parseDeferStat 解析defer语句
 func (v *parser) parseDeferStat() *DeferStatNode {
 	defer un(trace(v, "deferstat"))
 
+	// 以关键字defer开头
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_DEFER) {
 		return nil
 	}
 	startToken := v.consumeToken()
 
+	// 后接一个函数调用表达式
+	// TODO: 应当支持任意语句，比如一段代码块
 	call, ok := v.parseExpr().(*CallExprNode)
 	if !ok {
 		v.err("Expected valid call expression in defer statement")
@@ -887,9 +927,11 @@ func (v *parser) parseDeferStat() *DeferStatNode {
 	return res
 }
 
+// parseIfStat 解析if条件语句
 func (v *parser) parseIfStat() *IfStatNode {
 	defer un(trace(v, "ifstat"))
 
+	// 以if关键字开头
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_IF) {
 		return nil
 	}
@@ -898,11 +940,13 @@ func (v *parser) parseIfStat() *IfStatNode {
 	var parts []*ConditionBodyNode
 	var lastPart *ConditionBodyNode
 	for {
+		// 条件表达式。注：这里和Go一样，if后面的条件可以不用括号
 		condition := v.parseExpr()
 		if condition == nil {
 			v.err("Expected valid expression as condition in if statement")
 		}
 
+		// 条件执行代码块
 		body := v.parseBlock()
 		if body == nil {
 			v.err("Expected valid block after condition in if statement")
@@ -912,12 +956,14 @@ func (v *parser) parseIfStat() *IfStatNode {
 		lastPart.SetWhere(lexer.NewSpan(condition.Where().Start(), body.Where().End()))
 		parts = append(parts, lastPart)
 
+		// 支持else if多次条件判断
 		if !v.tokensMatch(lexer.Identifier, KEYWORD_ELSE, lexer.Identifier, KEYWORD_IF) {
 			break
 		}
 		v.consumeTokens(2)
 	}
 
+	// 如果if语句后面接着有else关键字，则继续解析else分支
 	var elseBody *BlockNode
 	if v.tokenMatches(0, lexer.Identifier, KEYWORD_ELSE) {
 		v.consumeToken()
@@ -937,44 +983,54 @@ func (v *parser) parseIfStat() *IfStatNode {
 	return res
 }
 
+// parseMatchStat 解析模式匹配语句
 func (v *parser) parseMatchStat() *MatchStatNode {
 	defer un(trace(v, "matchstat"))
 
+	// 以match关键字开头
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_MATCH) {
 		return nil
 	}
 	startToken := v.consumeToken()
 
+	// 接着是要判断匹配的表达式
 	value := v.parseExpr()
 	if value == nil {
 		v.err("Expected valid expresson as value in match statement")
 	}
 
+	// 然后是匹配代码块，以{}包含
 	v.expect(lexer.Separator, "{")
 
 	var cases []*MatchCaseNode
+	// 循环解析多个匹配项
 	for {
+		// 以}结尾
 		if v.tokenMatches(0, lexer.Separator, "}") {
 			break
 		}
 
+		// 解析一个匹配模式
 		pattern := v.parseMatchPattern()
 		if pattern == nil {
 			v.err("Expected valid pattern in match statement")
 		}
 
+		// 匹配模式与操作间用=>分隔
 		v.expect(lexer.Operator, "=>")
 
+		// 操作代码
 		var body ParseNode
-		if v.tokenMatches(0, lexer.Separator, "{") {
+		if v.tokenMatches(0, lexer.Separator, "{") { // 可以是代码块
 			body = v.parseBlock()
-		} else {
+		} else { // 也可以是单个语句
 			body = v.parseStat()
 		}
 		if body == nil {
 			v.err("Expected valid arm statement in match clause")
 		}
 
+		// 各个模式项之间以逗号分隔
 		v.expect(lexer.Separator, ",")
 
 		caseNode := &MatchCaseNode{Pattern: pattern, Body: body}
@@ -989,20 +1045,22 @@ func (v *parser) parseMatchStat() *MatchStatNode {
 	return res
 }
 
+// parseMatchPattern 解析匹配模式
 func (v *parser) parseMatchPattern() ParseNode {
 	defer un(trace(v, "matchpattern"))
-	if numLit := v.parseNumberLit(); numLit != nil {
+	if numLit := v.parseNumberLit(); numLit != nil { // 数字
 		return numLit
-	} else if stringLit := v.parseStringLit(); stringLit != nil {
+	} else if stringLit := v.parseStringLit(); stringLit != nil { // 字符串
 		return stringLit
-	} else if discardAccess := v.parseDiscardAccess(); discardAccess != nil {
+	} else if discardAccess := v.parseDiscardAccess(); discardAccess != nil { // 通配符 _
 		return discardAccess
-	} else if enumPattern := v.parseEnumPattern(); enumPattern != nil {
+	} else if enumPattern := v.parseEnumPattern(); enumPattern != nil { // 枚举值
 		return enumPattern
 	}
 	return nil
 }
 
+// parseDiscardAccess 解析匹配通配符 _
 func (v *parser) parseDiscardAccess() *DiscardAccessNode {
 	defer un(trace(v, "discardaccess"))
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_DISCARD) {
@@ -1015,6 +1073,7 @@ func (v *parser) parseDiscardAccess() *DiscardAccessNode {
 	return res
 }
 
+// parseEnumPattern 解析枚举模式
 func (v *parser) parseEnumPattern() *EnumPatternNode {
 	defer un(trace(v, "enumpattern"))
 	enumName := v.parseName()
@@ -1058,16 +1117,20 @@ func (v *parser) parseEnumPattern() *EnumPatternNode {
 	return res
 }
 
+// parseLoopStat 解析循环语句
 func (v *parser) parseLoopStat() *LoopStatNode {
 	defer un(trace(v, "loopstat"))
 
+	// 关键字for
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_FOR) {
 		return nil
 	}
 	startToken := v.consumeToken()
 
+	// 条件表达式，可以为空。为空时，即为无限循环。
 	condition := v.parseExpr()
 
+	// 循环体
 	body := v.parseBlock()
 	if body == nil {
 		v.err("Expected valid block as body of loop statement ", v.peek(0))
@@ -1078,14 +1141,17 @@ func (v *parser) parseLoopStat() *LoopStatNode {
 	return res
 }
 
+// parseReturnStat 解析return语句
 func (v *parser) parseReturnStat() *ReturnStatNode {
 	defer un(trace(v, "returnstat"))
 
+	// 以关键字return开头
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_RETURN) {
 		return nil
 	}
 	startToken := v.consumeToken()
 
+	// 后接一个值。可以是结构体常量，也可以是一个表达式
 	value := v.parseCompositeLiteral()
 	if value == nil {
 		value = v.parseExpr()
@@ -1103,6 +1169,8 @@ func (v *parser) parseReturnStat() *ReturnStatNode {
 	return res
 }
 
+// parseBreakStat 解析break语句
+// 注：这里只支持单独的break，还不支持跳出到指定点
 func (v *parser) parseBreakStat() *BreakStatNode {
 	defer un(trace(v, "breakstat"))
 
@@ -1116,6 +1184,9 @@ func (v *parser) parseBreakStat() *BreakStatNode {
 	return res
 }
 
+// parseNextStat 解析next语句
+// 注：next语句应当是和其他语言的continue类似。
+// TODO: 改为continue
 func (v *parser) parseNextStat() *NextStatNode {
 	defer un(trace(v, "nextstat"))
 
@@ -1129,15 +1200,18 @@ func (v *parser) parseNextStat() *NextStatNode {
 	return res
 }
 
+// parseBlockStat 解析代码块语句
 func (v *parser) parseBlockStat() *BlockStatNode {
 	defer un(trace(v, "blockstat"))
 
+	// 代码块语句可以以do关键字开头，也可以直接进入{}
 	startPos := v.currentToken
 	var doToken *lexer.Token
 	if v.tokenMatches(0, lexer.Identifier, KEYWORD_DO) {
 		doToken = v.consumeToken()
 	}
 
+	// 解析代码块，即 {...} 的内容
 	body := v.parseBlock()
 	if body == nil {
 		v.currentToken = startPos
@@ -1154,6 +1228,7 @@ func (v *parser) parseBlockStat() *BlockStatNode {
 	return res
 }
 
+// parseNode 解析函数体内的用法节点，可以是：声明语句；条件语句；代码块语句；以及普通的赋值或调用语句。
 func (v *parser) parseNode() (ParseNode, bool) {
 	defer un(trace(v, "node"))
 
@@ -1161,29 +1236,32 @@ func (v *parser) parseNode() (ParseNode, bool) {
 
 	is_cond := false
 
-	if decl := v.parseDecl(false); decl != nil {
+	if decl := v.parseDecl(false); decl != nil { // 可以在函数体内进行各种声明，包括变量、函数等。
 		ret = decl
-	} else if cond := v.parseConditionalStat(); cond != nil {
+	} else if cond := v.parseConditionalStat(); cond != nil { // 条件流程控制语句
 		ret = cond
 		is_cond = true
-	} else if blockStat := v.parseBlockStat(); blockStat != nil {
+	} else if blockStat := v.parseBlockStat(); blockStat != nil { // 函数体内可以再嵌套代码块
 		ret = blockStat
 		is_cond = true
-	} else if stat := v.parseStat(); stat != nil {
+	} else if stat := v.parseStat(); stat != nil { // 普通语句
 		ret = stat
 	}
 
 	return ret, is_cond
 }
 
+// parseBlock 解析函数体，必须用{}包括
 func (v *parser) parseBlock() *BlockNode {
 	defer un(trace(v, "block"))
 
+	// 以{开头
 	if !v.tokenMatches(0, lexer.Separator, "{") {
 		return nil
 	}
 	startToken := v.consumeToken()
 
+	// 解析函数体重的各个语法节点，以;分隔
 	var nodes []ParseNode
 	for {
 		node, is_cond := v.parseNode()
@@ -1196,6 +1274,7 @@ func (v *parser) parseBlock() *BlockNode {
 		nodes = append(nodes, node)
 	}
 
+	// 函数体以}结尾
 	endToken := v.expect(lexer.Separator, "}")
 
 	res := &BlockNode{Nodes: nodes}
@@ -1203,11 +1282,14 @@ func (v *parser) parseBlock() *BlockNode {
 	return res
 }
 
+// parseCallStat 解析调用语句
 func (v *parser) parseCallStat() *CallStatNode {
 	defer un(trace(v, "callstat"))
 
 	startPos := v.currentToken
 
+	// 函数调用语句是一个表达式，并且能够解析成CallExprNode
+	// TODO: 为什么不直接写一个parseCallExpr函数呢？
 	callExpr, ok := v.parseExpr().(*CallExprNode)
 	if !ok {
 		v.currentToken = startPos
@@ -1219,11 +1301,13 @@ func (v *parser) parseCallStat() *CallStatNode {
 	return res
 }
 
+// parseAssignStat 解析赋值语句
 func (v *parser) parseAssignStat() ParseNode {
 	defer un(trace(v, "assignstat"))
 
 	startPos := v.currentToken
 
+	// 左侧是一个表达式，后接一个=
 	accessExpr := v.parseExpr()
 	if accessExpr == nil || !v.tokenMatches(0, lexer.Operator, "=") {
 		v.currentToken = startPos
@@ -1233,6 +1317,7 @@ func (v *parser) parseAssignStat() ParseNode {
 	// consume '='
 	v.consumeToken()
 
+	// 右侧是一个表达式或者结构体常量
 	var value ParseNode
 	value = v.parseCompositeLiteral()
 	if value == nil {
@@ -1265,26 +1350,31 @@ func (v *parser) peekBinop() (BinOpType, int) {
 	return typ, numTokens
 }
 
+// parseBinopAssignStat 解析二元赋值语句
+// 实例： a += 1
 func (v *parser) parseBinopAssignStat() ParseNode {
 	defer un(trace(v, "binopassignstat"))
 
 	startPos := v.currentToken
 
+	// 以+=, *=, -=, /= 之类的二元操作符号开头
 	accessExpr := v.parseExpr()
 	if accessExpr == nil || !v.tokensMatch(lexer.Operator, "", lexer.Operator, "=") {
 		v.currentToken = startPos
 		return nil
 	}
 
+	// 注意，>>=有三个字符。因此要通过 peekBinop单独判断
 	typ, numTokens := v.peekBinop()
 	if typ == BINOP_ERR || typ.Category() == OP_COMPARISON {
 		v.err("Invalid binary operator `%s`", v.peek(0).Contents)
 	}
 	v.consumeTokens(numTokens)
 
-	// consume '='
+	// 消化 '='
 	v.consumeToken()
 
+	// =右侧可以是表达式或结构体常量
 	var value ParseNode
 	value = v.parseCompositeLiteral()
 	if value == nil {
@@ -2161,12 +2251,17 @@ func (v *parser) parseUnaryExpr() *UnaryExprNode {
 	return res
 }
 
+// parseCompositeLiteral 解析结构体常量
+// 实例：Person{id: 1, name: Name{first:"John",last:"Smith"}}
 func (v *parser) parseCompositeLiteral() ParseNode {
 	defer un(trace(v, "complit"))
 
 	startPos := v.currentToken
+
+	// 结构体常量以类型名称开头
 	typ := v.parseTypeReference(true, true, true)
 
+	// 内容以{开头
 	if !v.tokenMatches(0, lexer.Separator, "{") {
 		v.currentToken = startPos
 		return nil
@@ -2179,7 +2274,9 @@ func (v *parser) parseCompositeLiteral() ParseNode {
 
 	var lastToken *lexer.Token
 
+	// 循环解析每个成员
 	for {
+		// 遇到}结束
 		if v.tokenMatches(0, lexer.Separator, "}") {
 			lastToken = v.consumeToken()
 			break
@@ -2187,13 +2284,15 @@ func (v *parser) parseCompositeLiteral() ParseNode {
 
 		var field LocatedString
 
+		// 解析成员名称，名称与值之间用:分隔
 		if v.tokensMatch(lexer.Identifier, "", lexer.Operator, ":") {
 			field = NewLocatedString(v.consumeToken())
 			v.consumeToken()
 		}
 
+		// 解析成员的值。注意成员的值也可以是一个结构体常量
 		val := v.parseCompositeLiteral()
-		if val == nil {
+		if val == nil { // 或者普通表达式
 			val = v.parseExpr()
 		}
 		if val == nil {
@@ -2203,6 +2302,7 @@ func (v *parser) parseCompositeLiteral() ParseNode {
 		res.Fields = append(res.Fields, field)
 		res.Values = append(res.Values, val)
 
+		// 成员间以逗号分隔
 		if v.tokenMatches(0, lexer.Separator, ",") {
 			v.consumeToken()
 			continue

@@ -82,6 +82,8 @@ pub fun main() int {
 
 # 近期计划
 
+- [ ] 将next关键字改为常用的continue
+- [ ] 弄清楚为什么不把CompositeLiteral直接放到Expr中，而是每次都单独判断。换个说法：结构体常量是不是一个表达式？
 - [ ] 去掉变量的类型声明中的":"，改成类似Go语言的声明格式。即`var a: int`改为`var a int`；
 - [ ] 深入阅读Ark编译器的代码，理清流程，添加注释，写出一个编译器设计文档。
 - [ ] 将模块访问符号`"::"`改为`"."`。由于结构成员访问符号也是`"."`，因此需要将`VariableAccessExpr`和`StructAccessExpr`合并起来，并处理对应的Resolve/Inference环节。
