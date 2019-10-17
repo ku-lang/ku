@@ -1894,14 +1894,17 @@ func (v *parser) parseNamedType() *NamedTypeNode {
 	return res
 }
 
+// parseExpr 解析表达式
 func (v *parser) parseExpr() ParseNode {
 	defer un(trace(v, "expr"))
 
+	// 先尝试后缀表达式
 	pri := v.parsePostfixExpr()
 	if pri == nil {
 		return nil
 	}
 
+	// 再尝试二元操作符表达式
 	if bin := v.parseBinaryOperator(0, pri); bin != nil {
 		return bin
 	}
@@ -1959,9 +1962,11 @@ func (v *parser) parseBinaryOperator(upperPrecedence int, lhand ParseNode) Parse
 	}
 }
 
+// parsePostfixExpr 解析后缀表达式
 func (v *parser) parsePostfixExpr() ParseNode {
 	defer un(trace(v, "postfixexpr"))
 
+	// 先解析普通表达式
 	expr := v.parsePrimaryExpr()
 	if expr == nil {
 		return nil
@@ -2037,21 +2042,21 @@ func (v *parser) parsePrimaryExpr() ParseNode {
 
 	var res ParseNode
 
-	if sizeofExpr := v.parseSizeofExpr(); sizeofExpr != nil {
+	if sizeofExpr := v.parseSizeofExpr(); sizeofExpr != nil { // sizeof 表达式
 		res = sizeofExpr
-	} else if arrayLenExpr := v.parseArrayLenExpr(); arrayLenExpr != nil {
+	} else if arrayLenExpr := v.parseArrayLenExpr(); arrayLenExpr != nil { // 数组长度表达式
 		res = arrayLenExpr
-	} else if addrofExpr := v.parseAddrofExpr(); addrofExpr != nil {
+	} else if addrofExpr := v.parseAddrofExpr(); addrofExpr != nil { // 获取地址表达式
 		res = addrofExpr
-	} else if litExpr := v.parseLitExpr(); litExpr != nil {
+	} else if litExpr := v.parseLitExpr(); litExpr != nil { // 常量表达式
 		res = litExpr
-	} else if lambdaExpr := v.parseLambdaExpr(); lambdaExpr != nil {
+	} else if lambdaExpr := v.parseLambdaExpr(); lambdaExpr != nil { // lambda表达式
 		res = lambdaExpr
-	} else if unaryExpr := v.parseUnaryExpr(); unaryExpr != nil {
+	} else if unaryExpr := v.parseUnaryExpr(); unaryExpr != nil { // 一元操作表达式
 		res = unaryExpr
-	} else if castExpr := v.parseCastExpr(); castExpr != nil {
+	} else if castExpr := v.parseCastExpr(); castExpr != nil { // 类型转化表达式
 		res = castExpr
-	} else if name := v.parseName(); name != nil {
+	} else if name := v.parseName(); name != nil { // 泛型表达式？？
 		startPos := v.currentToken
 
 		// Handle discard access
@@ -2093,6 +2098,7 @@ func (v *parser) parsePrimaryExpr() ParseNode {
 	return res
 }
 
+// len(arr)
 func (v *parser) parseArrayLenExpr() *ArrayLenExprNode {
 	defer un(trace(v, "arraylenexpr"))
 
@@ -2120,6 +2126,7 @@ func (v *parser) parseArrayLenExpr() *ArrayLenExprNode {
 	return res
 }
 
+// sizeof(expr) 或 sizeof(type)
 func (v *parser) parseSizeofExpr() *SizeofExprNode {
 	defer un(trace(v, "sizeofexpr"))
 
@@ -2146,6 +2153,7 @@ func (v *parser) parseSizeofExpr() *SizeofExprNode {
 	return res
 }
 
+// &expr 或 &var expr
 func (v *parser) parseAddrofExpr() *AddrofExprNode {
 	defer un(trace(v, "addrofexpr"))
 	startPos := v.currentToken
@@ -2179,26 +2187,28 @@ func (v *parser) parseAddrofExpr() *AddrofExprNode {
 	return res
 }
 
+// parseLitExpr 解析各种常量
 func (v *parser) parseLitExpr() ParseNode {
 	defer un(trace(v, "litexpr"))
 
 	var res ParseNode
 
-	if tupleLit := v.parseTupleLit(); tupleLit != nil {
+	if tupleLit := v.parseTupleLit(); tupleLit != nil { // 常量元组
 		res = tupleLit
-	} else if boolLit := v.parseBoolLit(); boolLit != nil {
+	} else if boolLit := v.parseBoolLit(); boolLit != nil { // 布尔值 true/false
 		res = boolLit
-	} else if numberLit := v.parseNumberLit(); numberLit != nil {
+	} else if numberLit := v.parseNumberLit(); numberLit != nil { // 数字常量
 		res = numberLit
-	} else if stringLit := v.parseStringLit(); stringLit != nil {
+	} else if stringLit := v.parseStringLit(); stringLit != nil { // 字符串常量
 		res = stringLit
-	} else if runeLit := v.parseRuneLit(); runeLit != nil {
+	} else if runeLit := v.parseRuneLit(); runeLit != nil { // 字符常量
 		res = runeLit
 	}
 
 	return res
 }
 
+// type(expr)
 func (v *parser) parseCastExpr() *CastExprNode {
 	defer un(trace(v, "castexpr"))
 
@@ -2223,6 +2233,7 @@ func (v *parser) parseCastExpr() *CastExprNode {
 	return res
 }
 
+// -var | @var | !var | ~var
 func (v *parser) parseUnaryExpr() *UnaryExprNode {
 	defer un(trace(v, "unaryexpr"))
 
@@ -2323,6 +2334,7 @@ func (v *parser) parseCompositeLiteral() ParseNode {
 	return res
 }
 
+// (expr, expr, expr)
 func (v *parser) parseTupleLit() *TupleLiteralNode {
 	defer un(trace(v, "tuplelit"))
 
@@ -2373,6 +2385,7 @@ func (v *parser) parseTupleLit() *TupleLiteralNode {
 	return res
 }
 
+// true/false
 func (v *parser) parseBoolLit() *BoolLitNode {
 	defer un(trace(v, "boollit"))
 
@@ -2393,9 +2406,12 @@ func (v *parser) parseBoolLit() *BoolLitNode {
 	return res
 }
 
+// parseInt 解析base进制的整数
 func parseInt(num string, base int) (*big.Int, bool) {
+	// 支持_分隔，如 10000 可以写作 1_0000
 	num = strings.ToLower(strings.Replace(num, "_", "", -1))
 
+	// 根据e来分隔科学计数法中的基数和幂
 	var splitNum []string
 	if base == 10 {
 		splitNum = strings.Split(num, "e")
@@ -2447,6 +2463,7 @@ func parseInt(num string, base int) (*big.Int, bool) {
 	return ret, true
 }
 
+// parseNumberLit 解析数字常量，包括各个进制的整数、浮点数
 func (v *parser) parseNumberLit() *NumberLitNode {
 	defer un(trace(v, "numberlit"))
 
@@ -2460,25 +2477,25 @@ func (v *parser) parseNumberLit() *NumberLitNode {
 
 	res := &NumberLitNode{}
 
-	if strings.HasPrefix(num, "0x") || strings.HasPrefix(num, "0X") {
+	if strings.HasPrefix(num, "0x") || strings.HasPrefix(num, "0X") { // 十六进制
 		ok := false
 		res.IntValue, ok = parseInt(num[2:], 16)
 		if !ok {
 			v.errTokenSpecific(token, "Malformed hex literal: `%s`", num)
 		}
-	} else if strings.HasPrefix(num, "0b") {
+	} else if strings.HasPrefix(num, "0b") { // 二进制
 		ok := false
 		res.IntValue, ok = parseInt(num[2:], 2)
 		if !ok {
 			v.errTokenSpecific(token, "Malformed binary literal: `%s`", num)
 		}
-	} else if strings.HasPrefix(num, "0o") {
+	} else if strings.HasPrefix(num, "0o") { // 八进制
 		ok := false
 		res.IntValue, ok = parseInt(num[2:], 8)
 		if !ok {
 			v.errTokenSpecific(token, "Malformed octal literal: `%s`", num)
 		}
-	} else if lastRune := unicode.ToLower([]rune(num)[len([]rune(num))-1]); strings.ContainsRune(num, '.') || lastRune == 'f' || lastRune == 'd' || lastRune == 'q' {
+	} else if lastRune := unicode.ToLower([]rune(num)[len([]rune(num))-1]); strings.ContainsRune(num, '.') || lastRune == 'f' || lastRune == 'd' || lastRune == 'q' { // 浮点数
 		if strings.Count(num, ".") > 1 {
 			v.errTokenSpecific(token, "Floating-point cannot have multiple periods: `%s`", num)
 			return nil
@@ -2505,7 +2522,7 @@ func (v *parser) parseNumberLit() *NumberLitNode {
 				v.errTokenSpecific(token, "Unexpected error from floating-point literal: %s", err)
 			}
 		}
-	} else {
+	} else { // 默认十进制整数
 		ok := false
 		res.IntValue, ok = parseInt(num, 10)
 		if !ok {
@@ -2517,17 +2534,18 @@ func (v *parser) parseNumberLit() *NumberLitNode {
 	return res
 }
 
+// parseStringLit 解析字符串常量。
 func (v *parser) parseStringLit() *StringLitNode {
 	defer un(trace(v, "stringlit"))
 
 	var cstring bool
 	var firstToken, stringToken *lexer.Token
 
-	if v.tokenMatches(0, lexer.String, "") {
+	if v.tokenMatches(0, lexer.String, "") { // 普通字符串
 		cstring = false
 		firstToken = v.consumeToken()
 		stringToken = firstToken
-	} else if v.tokensMatch(lexer.Identifier, "c", lexer.String, "") {
+	} else if v.tokensMatch(lexer.Identifier, "c", lexer.String, "") { // c语言字符串：c"abc"
 		cstring = true
 		firstToken = v.consumeToken()
 		stringToken = v.consumeToken()
@@ -2535,6 +2553,7 @@ func (v *parser) parseStringLit() *StringLitNode {
 		return nil
 	}
 
+	// 读入代码中的字符串常量时，需要进行转义消解
 	unescaped, err := UnescapeString(stringToken.Contents)
 	if err != nil {
 		v.errTokenSpecific(stringToken, "Invalid string literal: %s", err)
@@ -2545,6 +2564,7 @@ func (v *parser) parseStringLit() *StringLitNode {
 	return res
 }
 
+// parseRuneLit 解析字符常量
 func (v *parser) parseRuneLit() *RuneLitNode {
 	defer un(trace(v, "runelit"))
 
