@@ -52,7 +52,7 @@ func SemCheck(module *ast.Module, ignoreUnused bool) {
 	checks := []SemanticCheck{
 		&AttributeCheck{},
 		&UnreachableCheck{},
-		&BreakAndNextCheck{},
+		&BreakAndContinueCheck{},
 		&DeprecatedCheck{},
 		&RecursiveDefinitionCheck{},
 		&TypeCheck{},
