@@ -888,8 +888,8 @@ func (v *parser) parseStat() ParseNode {
 
 	if breakStat := v.parseBreakStat(); breakStat != nil { // break 语句
 		res = breakStat
-	} else if nextStat := v.parseNextStat(); nextStat != nil { // next 语句
-		res = nextStat
+	} else if continueStat := v.parseContinueStat(); continueStat != nil { // continue 语句
+		res = continueStat
 	} else if deferStat := v.parseDeferStat(); deferStat != nil { // defer 语句
 		res = deferStat
 	} else if returnStat := v.parseReturnStat(); returnStat != nil { // return 语句
@@ -1184,18 +1184,16 @@ func (v *parser) parseBreakStat() *BreakStatNode {
 	return res
 }
 
-// parseNextStat 解析next语句
-// 注：next语句应当是和其他语言的continue类似。
-// TODO: 改为continue
-func (v *parser) parseNextStat() *NextStatNode {
-	defer un(trace(v, "nextstat"))
+// parseContinueStat 解析continue语句
+func (v *parser) parseContinueStat() *ContinueStatNode {
+	defer un(trace(v, "continuestat"))
 
-	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_NEXT) {
+	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_CONTINUE) {
 		return nil
 	}
 	startToken := v.consumeToken()
 
-	res := &NextStatNode{}
+	res := &ContinueStatNode{}
 	res.SetWhere(startToken.Where)
 	return res
 }

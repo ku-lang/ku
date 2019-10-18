@@ -390,8 +390,8 @@ func (v *Codegen) genStat(n ast.Stat) {
 		v.genReturnStat(n)
 	case *ast.BreakStat:
 		v.genBreakStat(n)
-	case *ast.NextStat:
-		v.genNextStat(n)
+	case *ast.ContinueStat:
+		v.genContinueStat(n)
 	case *ast.BlockStat:
 		v.genBlockStat(n)
 	case *ast.CallStat:
@@ -422,7 +422,7 @@ func (v *Codegen) genBreakStat(n *ast.BreakStat) {
 	v.builder().CreateBr(curExits[len(curExits)-1])
 }
 
-func (v *Codegen) genNextStat(n *ast.NextStat) {
+func (v *Codegen) genContinueStat(n *ast.ContinueStat) {
 	curNexts := v.curLoopNexts[v.currentFunction()]
 	v.builder().CreateBr(curNexts[len(curNexts)-1])
 }
@@ -533,7 +533,7 @@ func (v *Codegen) genBinopAssign(op parser.BinOpType, acc ast.AccessExpr, value 
 
 func isBreakOrNext(n ast.Node) bool {
 	switch n.(type) {
-	case *ast.BreakStat, *ast.NextStat:
+	case *ast.BreakStat, *ast.ContinueStat:
 		return true
 	}
 	return false

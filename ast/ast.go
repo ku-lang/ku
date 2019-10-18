@@ -424,20 +424,20 @@ func (_ BreakStat) NodeName() string {
 	return "break statement"
 }
 
-// NextStat
+// ContinueStat
 
-type NextStat struct {
+type ContinueStat struct {
 	nodePos
 }
 
-func (_ NextStat) statNode() {}
+func (_ ContinueStat) statNode() {}
 
-func (v NextStat) String() string {
-	return NewASTStringer("NextStat").Finish()
+func (v ContinueStat) String() string {
+	return NewASTStringer("ContinueStat").Finish()
 }
 
-func (_ NextStat) NodeName() string {
-	return "next statement"
+func (_ ContinueStat) NodeName() string {
+	return "continue statement"
 }
 
 // CallStat

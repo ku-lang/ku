@@ -117,8 +117,8 @@ func (v *Constructor) constructNode(node parser.ParseNode) Node {
 		return v.constructReturnStatNode(node)
 	case *parser.BreakStatNode:
 		return v.constructBreakStatNode(node)
-	case *parser.NextStatNode:
-		return v.constructNextStatNode(node)
+	case *parser.ContinueStatNode:
+		return v.constructContinueStatNode(node)
 	case *parser.BlockStatNode:
 		return v.constructBlockStatNode(node)
 	case *parser.BlockNode:
@@ -543,8 +543,8 @@ func (c *Constructor) constructBreakStatNode(v *parser.BreakStatNode) *BreakStat
 	return res
 }
 
-func (c *Constructor) constructNextStatNode(v *parser.NextStatNode) *NextStat {
-	res := &NextStat{}
+func (c *Constructor) constructContinueStatNode(v *parser.ContinueStatNode) *ContinueStat {
+	res := &ContinueStat{}
 	res.SetPos(v.Where().Start())
 	return res
 }

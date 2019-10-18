@@ -17,7 +17,7 @@ const (
 	KEYWORD_IF        string = "if"
 	KEYWORD_MATCH     string = "match"
 	KEYWORD_VAR       string = "var"
-	KEYWORD_NEXT      string = "next"
+	KEYWORD_CONTINUE  string = "continue"
 	KEYWORD_PUB       string = "pub"
 	KEYWORD_RETURN    string = "return"
 	KEYWORD_SIZEOF    string = "sizeof"
@@ -45,7 +45,7 @@ var keywordList = []string{
 	KEYWORD_IF,
 	KEYWORD_MATCH,
 	KEYWORD_VAR,
-	KEYWORD_NEXT,
+	KEYWORD_CONTINUE,
 	KEYWORD_PUB,
 	KEYWORD_RETURN,
 	KEYWORD_SIZEOF,
@@ -68,6 +68,8 @@ func init() {
 	}
 }
 
+// 判断保留关键字
+// Ark语言里，以下划线开头，并后接一个大写字母的变量，算作保留关键字。原因是这种变量名称有可能会与name mangling冲突
 func IsReservedKeyword(s string) bool {
 	if m := keywordMap[s]; m {
 		return true

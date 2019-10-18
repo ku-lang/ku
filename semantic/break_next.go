@@ -25,7 +25,7 @@ func (v *BreakAndNextCheck) Finalize(s *SemanticAnalyzer)   {}
 
 func (v *BreakAndNextCheck) Visit(s *SemanticAnalyzer, n ast.Node) {
 	switch n := n.(type) {
-	case *ast.NextStat, *ast.BreakStat:
+	case *ast.ContinueStat, *ast.BreakStat:
 		if v.nestedLoopCount[v.functions[len(v.functions)-1]] == 0 {
 			s.Err(n, "%s must be in a loop", util.CapitalizeFirst(n.NodeName()))
 		}
@@ -62,7 +62,7 @@ func (v *BreakAndNextCheck) PostVisit(s *SemanticAnalyzer, n ast.Node) {
 
 func isBreakOrNext(n ast.Node) bool {
 	switch n.(type) {
-	case *ast.BreakStat, *ast.NextStat:
+	case *ast.BreakStat, *ast.ContinueStat:
 		return true
 	}
 	return false

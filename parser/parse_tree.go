@@ -321,7 +321,7 @@ type BreakStatNode struct {
 	baseNode
 }
 
-type NextStatNode struct {
+type ContinueStatNode struct {
 	baseNode
 }
 
