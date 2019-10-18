@@ -7,23 +7,23 @@ import (
 
 // TODO handle match/switch, if we need to
 
-type BreakAndNextCheck struct {
+type BreakAndContinueCheck struct {
 	nestedLoopCount map[*ast.Function]int
 	functions       []*ast.Function
 }
 
-func (_ BreakAndNextCheck) Name() string { return "break and next" }
+func (_ BreakAndContinueCheck) Name() string { return "break and next" }
 
-func (v *BreakAndNextCheck) Init(s *SemanticAnalyzer) {
+func (v *BreakAndContinueCheck) Init(s *SemanticAnalyzer) {
 	v.nestedLoopCount = make(map[*ast.Function]int)
 	v.functions = nil
 }
 
-func (v *BreakAndNextCheck) EnterScope(s *SemanticAnalyzer) {}
-func (v *BreakAndNextCheck) ExitScope(s *SemanticAnalyzer)  {}
-func (v *BreakAndNextCheck) Finalize(s *SemanticAnalyzer)   {}
+func (v *BreakAndContinueCheck) EnterScope(s *SemanticAnalyzer) {}
+func (v *BreakAndContinueCheck) ExitScope(s *SemanticAnalyzer)  {}
+func (v *BreakAndContinueCheck) Finalize(s *SemanticAnalyzer)   {}
 
-func (v *BreakAndNextCheck) Visit(s *SemanticAnalyzer, n ast.Node) {
+func (v *BreakAndContinueCheck) Visit(s *SemanticAnalyzer, n ast.Node) {
 	switch n := n.(type) {
 	case *ast.ContinueStat, *ast.BreakStat:
 		if v.nestedLoopCount[v.functions[len(v.functions)-1]] == 0 {
@@ -40,11 +40,11 @@ func (v *BreakAndNextCheck) Visit(s *SemanticAnalyzer, n ast.Node) {
 	}
 }
 
-func (v *BreakAndNextCheck) PostVisit(s *SemanticAnalyzer, n ast.Node) {
+func (v *BreakAndContinueCheck) PostVisit(s *SemanticAnalyzer, n ast.Node) {
 	switch n := n.(type) {
 	case *ast.Block:
 		for i, c := range n.Nodes {
-			if i < len(n.Nodes)-1 && isBreakOrNext(c) {
+			if i < len(n.Nodes)-1 && isBreakOrContinue(c) {
 				s.Err(n.Nodes[i+1], "Unreachable code")
 			}
 		}
@@ -60,7 +60,7 @@ func (v *BreakAndNextCheck) PostVisit(s *SemanticAnalyzer, n ast.Node) {
 	}
 }
 
-func isBreakOrNext(n ast.Node) bool {
+func isBreakOrContinue(n ast.Node) bool {
 	switch n.(type) {
 	case *ast.BreakStat, *ast.ContinueStat:
 		return true
