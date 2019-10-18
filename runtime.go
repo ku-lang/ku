@@ -9,8 +9,8 @@ import (
 
 // TODO: Move this at a file and handle locating/specifying this file
 const RuntimeSource = `
-[c] fun printf(fmt ^u8, ...) int;
-[c] fun exit(code C::int);
+[C] fun printf(fmt ^u8, ...) int;
+[C] fun exit(code C::int);
 
 pub fun panic(message string) {
 	if len(message) == 0 {

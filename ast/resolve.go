@@ -133,7 +133,7 @@ func (v *Resolver) ResolveTopLevelDecls() {
 				if node.Function.Receiver == nil {
 					if node.Function.StaticReceiverType == nil {
 						scope := v.curScope
-						if node.Function.Type.Attrs().Contains("c") {
+						if node.Function.Type.Attrs().Contains("C") {
 							scope = v.cModule.ModScope
 							node.SetPublic(true)
 						}

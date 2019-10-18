@@ -312,7 +312,7 @@ func (v *Codegen) declareFunctionDecl(n *ast.FunctionDecl, gcon *ast.GenericCont
 	} else {
 		// find them attributes yo
 		attrs := n.Function.Type.Attrs()
-		cBinding := attrs.Contains("c")
+		cBinding := attrs.Contains("C")
 
 		// create the function type
 		funcType := v.functionTypeToLLVMType(n.Function.Type, false, gcon)
@@ -1020,7 +1020,7 @@ func (v *Codegen) genAccessExpr(n ast.Expr) llvm.Value {
 
 		cBinding := false
 		if fae.Function.Type.Attrs() != nil {
-			cBinding = fae.Function.Type.Attrs().Contains("c")
+			cBinding = fae.Function.Type.Attrs().Contains("C")
 		}
 		if cBinding {
 			fnName = fae.Function.Name

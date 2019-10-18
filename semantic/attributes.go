@@ -45,7 +45,7 @@ func (v *AttributeCheck) CheckFunctionDecl(s *SemanticAnalyzer, n *ast.FunctionD
 	for _, attr := range n.Function.Type.Attrs() {
 		switch attr.Key {
 		case "deprecated":
-		case "c":
+		case "C":
 		case "call_conv":
 		case "nomangle":
 		case "inline":

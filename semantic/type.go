@@ -363,7 +363,7 @@ func (v *TypeCheck) CheckCallExpr(s *SemanticAnalyzer, expr *ast.CallExpr) {
 
 	// find them attributes yo
 	if fnType.Attrs() != nil {
-		c = fnType.Attrs().Contains("c")
+		c = fnType.Attrs().Contains("C")
 	}
 
 	var fnName string
