@@ -33,16 +33,20 @@
 ```ku
 use std::io
 
-[c] fun printf(fmt: ^u8, ...)  int;
+// declare extern C function
+[c] fun printf(fmt ^u8, ...)  int;
 
+// define a function
 fun hello() {
   io::println("hello world")
 }
 
-fun add(a: int, b: int) int {
+// define functions with parameters and returns
+fun add(a int, b int) int {
   return a + b
 }
 
+// main() function
 pub fun main() int {
   // call a user defined function
   hello()
@@ -53,18 +57,20 @@ pub fun main() int {
   // call C functions directly
   C::printf(c"%s,%s\n", c"abc", c"def")
 
-  // a var is mutable
-  var i := "abc"
-  io::println(i)
-  i = "def"
-  io::println(i)
-
-  // variable are not mutable by default
-  a := 2
+  // use let to declare an immutable value
+  let a = 2
   io::printInt(add(a, 5))
+
+  // if controll flow
   if a > 1 {
     hello()
   }
+
+  // use var to declare a mutable variable
+  var i = "abc"
+  io::println(i)
+  i = "def"
+  io::println(i)
 
   return 0
 }
@@ -82,16 +88,18 @@ pub fun main() int {
 
 # 近期计划
 
-- [ ] 将next关键字改为常用的continue
+- [x] 将next关键字改为常用的continue
+- [x] 增加let关键字，表示不可变值的声明。
+- [x] 去掉变量的类型声明中的":"，改成类似Go语言的声明格式。即`var a: int`改为`var a int`；
+- [ ] 将C语言的标注从`[c]`改为`[C]`
 - [ ] 弄清楚为什么不把CompositeLiteral直接放到Expr中，而是每次都单独判断。换个说法：结构体常量是不是一个表达式？
-- [ ] 去掉变量的类型声明中的":"，改成类似Go语言的声明格式。即`var a: int`改为`var a int`；
 - [ ] 深入阅读Ark编译器的代码，理清流程，添加注释，写出一个编译器设计文档。
+- [ ] Ark还没有实现C风格的三段式for循环，需要实现。
 - [ ] 将模块访问符号`"::"`改为`"."`。由于结构成员访问符号也是`"."`，因此需要将`VariableAccessExpr`和`StructAccessExpr`合并起来，并处理对应的Resolve/Inference环节。
-- [ ] 增加let关键字，表示不可变值的声明。
 - [ ] 修改方法定义格式，不再使用类似Go的格式，而是使用类似Kotlin的格式，即`fun Student.sayHello()`
 - [ ] 配合上一条，增加this关键字，用来表示当前对象。
-- [ ] 去掉自定义类型定义中的struct关键字。直接 `type Book { title string }` 即可。
-- [ ] 增加对字符串内联的支持
+- [ ] 去掉自定义类型定义中的struct关键字。直接 `type Book { title string }` 即可。即type定义的默认类型是struct
+- [ ] 增加对字符串内联的支持。如"Hello $world!"
 - [ ] 可变参数。类似Go/D的varargs，去掉对C风格varargs的支持，或者限制其只在C交互块中使用。
 - [ ] 实现io::println()的可变参数版本
 - [ ] iterator/range
