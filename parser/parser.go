@@ -510,7 +510,7 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 					v.errToken("Expected type name in method receiver, found `%s`", v.peek(0).Contents)
 				}
 			} else { // 普通方法，有对象名和类名
-				res.Receiver = v.parseVarDeclBody(true)
+				res.Receiver = v.parseParaDecl(true)
 				if res.Receiver == nil {
 					v.errToken("Expected variable declaration in method receiver, found `%s`", v.peek(0).Contents)
 				}
@@ -547,7 +547,7 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 				v.err("Duplicate `...` in function arguments")
 			}
 		} else { // 否则每个参数是一个变量定义块
-			arg := v.parseVarDeclBody(false)
+			arg := v.parseParaDecl(false)
 			if arg == nil {
 				v.err("Expected valid variable declaration in function args")
 			}
@@ -716,11 +716,75 @@ func (v *parser) parseVarDecl(isTopLevel bool) *VarDeclNode {
 	if body == nil {
 		return nil
 	}
-	if isTopLevel {
-		v.expect(lexer.Separator, ";")
-	}
 
 	return body
+}
+
+// parseParaDecl 解析变量声明块。用于普通变量的定义，也用于函数定义中的变量列表。
+// 实例：a: string
+func (v *parser) parseParaDecl(isReceiver bool) *VarDeclNode {
+	defer un(trace(v, "vardeclbody"))
+
+	startPos := v.currentToken
+
+	// 可修改变量，默认是不可修改的，因此需要加var来指定可修改
+	var mutable *lexer.Token
+	if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
+		mutable = v.consumeToken()
+	}
+
+	// 变量名接着一个
+	if !v.tokenMatches(0, lexer.Identifier, "") {
+		v.currentToken = startPos
+		return nil
+	}
+
+	name := v.consumeToken()
+
+	// 变量类型
+	varType := v.parseTypeReference(true, false, true)
+	if varType == nil && !v.tokenMatches(0, lexer.Operator, "=") {
+		v.err("Expected valid type in variable declaration")
+	}
+
+	// 赋值语句。
+	var value ParseNode
+	if v.tokenMatches(0, lexer.Operator, "=") {
+		v.consumeToken()
+
+		// =后面可能是一个结构体常量
+		value = v.parseCompositeLiteral()
+		if value == nil {
+			// 也可能是一个表达式
+			value = v.parseExpr()
+		}
+
+		if value == nil {
+			v.err("Expected valid expression after `=` in variable declaration")
+		}
+	}
+
+	res := &VarDeclNode{
+		Name:       NewLocatedString(name),
+		Type:       varType,
+		IsImplicit: isReceiver,
+	}
+	start := name.Where.Start()
+	if mutable != nil {
+		res.Mutable = NewLocatedString(mutable)
+		start = mutable.Where.Start()
+	}
+
+	var end lexer.Position
+	if value != nil {
+		res.Value = value
+		end = value.Where().End()
+	} else {
+		end = varType.Where().End()
+	}
+
+	res.SetWhere(lexer.NewSpan(start, end))
+	return res
 }
 
 // parseVarDeclBody 解析变量声明块。用于普通变量的定义，也用于函数定义中的变量列表。
@@ -732,20 +796,22 @@ func (v *parser) parseVarDeclBody(isReceiver bool) *VarDeclNode {
 
 	// 可修改变量，默认是不可修改的，因此需要加var来指定可修改
 	var mutable *lexer.Token
-	if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
+	if v.tokenMatches(0, lexer.Identifier, KEYWORD_LET) {
+		mutable = nil
+		v.consumeToken()
+	} else if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
 		mutable = v.consumeToken()
+	} else {
+		return nil
 	}
 
-	// 变量名接着一个：
-	if !v.tokensMatch(lexer.Identifier, "", lexer.Operator, ":") {
+	// 变量名接着一个
+	if !v.tokenMatches(0, lexer.Identifier, "") {
 		v.currentToken = startPos
 		return nil
 	}
 
 	name := v.consumeToken()
-
-	// consume ':'
-	v.consumeToken()
 
 	// 变量类型
 	varType := v.parseTypeReference(true, false, true)
@@ -1628,9 +1694,9 @@ func (v *parser) parseStructType(requireKeyword bool) *StructTypeNode {
 func (v *parser) parseStructMember() *StructMemberNode {
 	docs := v.parseDocComments()
 
-	// 必须是 "name:" 或 "pub name:" 开头
-	if !(v.tokensMatch(lexer.Identifier, "", lexer.Operator, ":") ||
-		v.tokensMatch(lexer.Identifier, KEYWORD_PUB, lexer.Identifier, "", lexer.Operator, ":")) {
+	// 必须是 "name" 或 "pub name" 开头
+	if !(v.tokenMatches(0, lexer.Identifier, "") ||
+		v.tokensMatch(lexer.Identifier, KEYWORD_PUB, lexer.Identifier, "")) {
 		return nil
 	}
 
@@ -1648,9 +1714,6 @@ func (v *parser) parseStructMember() *StructMemberNode {
 	if !isPublic {
 		firstToken = name
 	}
-
-	// 消化':'
-	v.consumeToken()
 
 	// 解析成员类型
 	memType := v.parseTypeReference(true, false, true)

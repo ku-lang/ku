@@ -16,6 +16,7 @@ const (
 	KEYWORD_LEN       string = "len"
 	KEYWORD_IF        string = "if"
 	KEYWORD_MATCH     string = "match"
+	KEYWORD_LET       string = "let"
 	KEYWORD_VAR       string = "var"
 	KEYWORD_CONTINUE  string = "continue"
 	KEYWORD_PUB       string = "pub"
@@ -44,6 +45,7 @@ var keywordList = []string{
 	KEYWORD_LEN,
 	KEYWORD_IF,
 	KEYWORD_MATCH,
+	KEYWORD_LET,
 	KEYWORD_VAR,
 	KEYWORD_CONTINUE,
 	KEYWORD_PUB,

@@ -9,10 +9,10 @@ import (
 
 // TODO: Move this at a file and handle locating/specifying this file
 const RuntimeSource = `
-[c] fun printf(fmt: ^u8, ...) int;
-[c] fun exit(code: C::int);
+[c] fun printf(fmt ^u8, ...) int;
+[c] fun exit(code C::int);
 
-pub fun panic(message: string) {
+pub fun panic(message string) {
 	if len(message) == 0 {
 		C::printf(c"\n")
 	} else {
@@ -26,28 +26,28 @@ pub type Option enum<T> {
     None,
 }
 
-pub fun (o: Option<T>) unwrap() T {
+pub fun (o Option<T>) unwrap() T {
     match o {
         Some(t) => return t,
         None => panic("Option.unwrap: expected Some, have None"),
     }
 
-    a: T
+    let a T
     return a
 }
 
 type RawArray struct {
-    size: uint,
-    ptr: uintptr,
+    size uint,
+    ptr uintptr,
 }
 
-pub fun makeArray<T>(ptr: ^T, size: uint) []T {
-	raw := RawArray{size: size, ptr: uintptr(ptr)}
+pub fun makeArray<T>(ptr ^T, size uint) []T {
+	let raw = RawArray{size: size, ptr: uintptr(ptr)}
 	return @(^[]T)(uintptr(^raw))
 }
 
-pub fun breakArray<T>(arr: []T) (uint, ^T) {
-	raw := @(^RawArray)(uintptr(^arr))
+pub fun breakArray<T>(arr []T) (uint, ^T) {
+	let raw = @(^RawArray)(uintptr(^arr))
 	return (raw.size, (^T)(raw.ptr))
 }
 `
