@@ -380,10 +380,19 @@ func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 		}
 	}
 
+	// 解析static属性
+	var static bool
+	if isTopLevel {
+		if v.tokenMatches(0, lexer.Identifier, KEYWORD_STATIC) {
+			pub = true
+			v.consumeToken()
+		}
+	}
+
 	// 解析不同类型的定义块
 	if typeDecl := v.parseTypeDecl(isTopLevel); typeDecl != nil { // 类型定义，即type语句
 		res = typeDecl
-	} else if funcDecl := v.parseFuncDecl(isTopLevel); funcDecl != nil { // 函数定义
+	} else if funcDecl := v.parseFuncDecl(isTopLevel, static); funcDecl != nil { // 函数定义
 		res = funcDecl
 	} else if varDecl := v.parseVarDecl(isTopLevel); varDecl != nil { // 变量定义
 		res = varDecl
@@ -408,8 +417,8 @@ func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 }
 
 // parseFuncDecl 解析函数定义
-func (v *parser) parseFuncDecl(isTopLevel bool) *FunctionDeclNode {
-	fn := v.parseFunc(false, isTopLevel)
+func (v *parser) parseFuncDecl(isTopLevel bool, static bool) *FunctionDeclNode {
+	fn := v.parseFunc(false, isTopLevel, static)
 	if fn == nil {
 		return nil
 	}
@@ -421,7 +430,7 @@ func (v *parser) parseFuncDecl(isTopLevel bool) *FunctionDeclNode {
 
 // parseLambdaExpr 解析lambda函数定义
 func (v *parser) parseLambdaExpr() *LambdaExprNode {
-	fn := v.parseFunc(true, false)
+	fn := v.parseFunc(true, false, false)
 	if fn == nil {
 		return nil
 	}
@@ -434,11 +443,11 @@ func (v *parser) parseLambdaExpr() *LambdaExprNode {
 // parseFunc 分析函数
 // If lambda is true, we're parsing an expression.
 // If lambda is false, we're parsing a proper function declaration.
-func (v *parser) parseFunc(lambda bool, topLevelNode bool) *FunctionNode {
+func (v *parser) parseFunc(lambda bool, topLevelNode bool, static bool) *FunctionNode {
 	defer un(trace(v, "func"))
 
 	// 函数头
-	funcHeader := v.parseFuncHeader(lambda)
+	funcHeader := v.parseFuncHeader(lambda, static)
 	if funcHeader == nil {
 		return nil
 	}
@@ -482,7 +491,7 @@ func (v *parser) parseFunc(lambda bool, topLevelNode bool) *FunctionNode {
 }
 
 // If lambda is true, don't parse name and set Anonymous to true.
-func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
+func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
 	defer un(trace(v, "funcheader"))
 
 	// 函数头必须以fun关键字开头。
@@ -504,27 +513,37 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 			pos := v.currentToken
 			tok := v.peek(0)
 
-			// 先尝试解析一个类型名称，后面应当接着一个"."
-			typ := v.parseTypeReference(true, false, true)
-
-			fmt.Printf("Got type ref:%#v\n", typ)
-
-			if typ == nil || !v.tokenMatches(0, lexer.Separator, ".") {
-				// 解析类型失败，或者后面没有"."，回退到前面的位置，尝试直接解析函数名称
-				v.currentToken = pos
-			} else {
-				res.Receiver = &VarDeclNode{
-					Name: NewLocatedString(&lexer.Token{
-						Type:     lexer.Identifier,
-						Contents: "this",
-						Where:    tok.Where,
-					}),
-					Type:             typ,
-					IsImplicit:       true,
-					IsMethodReceiver: true,
+			if static {
+				typ := v.parseNamedType()
+				if res.StaticReceiverType != nil && v.tokenMatches(0, lexer.Separator, ".") {
+					res.StaticReceiverType = typ
+					v.expect(lexer.Separator, ".")
+				} else {
+					// 解析类型失败，或者后面没有"."，回退到前面的位置，尝试直接解析函数名称
+					v.currentToken = pos
 				}
-				v.expect(lexer.Separator, ".")
-				// TODO: deal with static receiver, need to parse static keyword before func keyword
+			} else {
+				// 先尝试解析一个类型名称，后面应当接着一个"."
+				typ := v.parseTypeReference(true, false, true)
+
+				if typ != nil && v.tokenMatches(0, lexer.Separator, ".") {
+
+					res.Receiver = &VarDeclNode{
+						Name: NewLocatedString(&lexer.Token{
+							Type:     lexer.Identifier,
+							Contents: "this",
+							Where:    tok.Where,
+						}),
+						Type:             typ,
+						IsImplicit:       true,
+						IsMethodReceiver: true,
+					}
+					v.expect(lexer.Separator, ".")
+
+				} else {
+					// 解析类型失败，或者后面没有"."，回退到前面的位置，尝试直接解析函数名称
+					v.currentToken = pos
+				}
 			}
 
 			/*
@@ -1640,7 +1659,7 @@ func (v *parser) parseInterfaceType() *InterfaceTypeNode {
 			break
 		}
 
-		function := v.parseFuncHeader(false)
+		function := v.parseFuncHeader(false, false)
 		if function != nil {
 			// TODO trailing comma
 			v.expect(lexer.Separator, ",")

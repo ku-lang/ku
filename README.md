@@ -48,7 +48,7 @@ fun add(a int, b int) int {
 }
 
 // 自定义类型
-type Cat struct {
+type Cat {
   name string
   age int
 }
