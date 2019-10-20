@@ -384,7 +384,7 @@ func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 	var static bool
 	if isTopLevel {
 		if v.tokenMatches(0, lexer.Identifier, KEYWORD_STATIC) {
-			pub = true
+			static = true
 			v.consumeToken()
 		}
 	}
@@ -494,6 +494,7 @@ func (v *parser) parseFunc(lambda bool, topLevelNode bool, static bool) *Functio
 func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
 	defer un(trace(v, "funcheader"))
 
+	fmt.Printf("is static: %v\n", static)
 	// 函数头必须以fun关键字开头。
 	// TODO: 未来应当让lambda不需要使用fun，而是直接 (a int, b int) => a + b 即可
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_FUN) {
@@ -515,8 +516,9 @@ func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
 
 			if static {
 				typ := v.parseNamedType()
-				if res.StaticReceiverType != nil && v.tokenMatches(0, lexer.Separator, ".") {
+				if typ != nil && v.tokenMatches(0, lexer.Separator, ".") {
 					res.StaticReceiverType = typ
+					fmt.Printf("got static receiver: %#v\n", res.StaticReceiverType)
 					v.expect(lexer.Separator, ".")
 				} else {
 					// 解析类型失败，或者后面没有"."，回退到前面的位置，尝试直接解析函数名称
