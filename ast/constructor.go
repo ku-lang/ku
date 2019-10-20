@@ -426,7 +426,11 @@ func (c *Constructor) constructFunctionDeclNode(v *parser.FunctionDeclNode) *Fun
 
 func (c *Constructor) constructVarDeclNode(v *parser.VarDeclNode) *VariableDecl {
 	if parser.IsReservedKeyword(v.Name.Value) {
-		c.err(v.Name.Where, "Variable name was reserved keyword `%s`", v.Name.Value)
+		if v.IsMethodReceiver && v.Name.Value == "this" {
+			// special case for method declaration
+		} else {
+			c.err(v.Name.Where, "Variable name was reserved keyword `%s`", v.Name.Value)
+		}
 	}
 
 	variable := &Variable{

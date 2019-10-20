@@ -26,8 +26,8 @@ pub type Option enum<T> {
     None,
 }
 
-pub fun (o Option<T>) unwrap() T {
-    match o {
+pub fun Option<T>.unwrap() T {
+    match this {
         Some(t) => return t,
         None => panic("Option.unwrap: expected Some, have None"),
     }

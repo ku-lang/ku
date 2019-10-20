@@ -499,24 +499,48 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 		// 格式：fun (a: String) startsWidth(head string) bool
 		// TODO: 未来应当改为类似Kotlin的方法定义格式： fun String.startsWith(head: string) bool，不过这样需要增加关键字 this用来指代当前对象
 		// parses the function receiver if there is one.
-		if v.tokenMatches(0, lexer.Separator, "(") {
-			// we have a method receiver
-			v.consumeToken()
+		if v.tokenMatches(0, lexer.Identifier, "") {
 
-			// static 方法，只有类名，没有对象名。实例 fun (String) make(len int) string
-			if v.tokensMatch(lexer.Identifier, "", lexer.Separator, ")") {
-				res.StaticReceiverType = v.parseNamedType()
-				if res.StaticReceiverType == nil {
-					v.errToken("Expected type name in method receiver, found `%s`", v.peek(0).Contents)
+			pos := v.currentToken
+			tok := v.peek(0)
+
+			// 先尝试解析一个类型名称，后面应当接着一个"."
+			typ := v.parseTypeReference(true, false, true)
+
+			fmt.Printf("Got type ref:%#v\n", typ)
+
+			if typ == nil || !v.tokenMatches(0, lexer.Separator, ".") {
+				// 解析类型失败，或者后面没有"."，回退到前面的位置，尝试直接解析函数名称
+				v.currentToken = pos
+			} else {
+				res.Receiver = &VarDeclNode{
+					Name: NewLocatedString(&lexer.Token{
+						Type:     lexer.Identifier,
+						Contents: "this",
+						Where:    tok.Where,
+					}),
+					Type:             typ,
+					IsImplicit:       true,
+					IsMethodReceiver: true,
 				}
-			} else { // 普通方法，有对象名和类名
-				res.Receiver = v.parseParaDecl(true)
-				if res.Receiver == nil {
-					v.errToken("Expected variable declaration in method receiver, found `%s`", v.peek(0).Contents)
-				}
+				v.expect(lexer.Separator, ".")
+				// TODO: deal with static receiver, need to parse static keyword before func keyword
 			}
 
-			v.expect(lexer.Separator, ")")
+			/*
+				// static 方法，只有类名，没有对象名。实例 fun (String) make(len int) string
+				if v.tokensMatch(lexer.Identifier, "", lexer.Separator, ")") {
+					res.StaticReceiverType = v.parseNamedType()
+					if res.StaticReceiverType == nil {
+						v.errToken("Expected type name in method receiver, found `%s`", v.peek(0).Contents)
+					}
+				} else { // 普通方法，有对象名和类名
+					res.Receiver = v.parseParaDecl(true)
+					if res.Receiver == nil {
+						v.errToken("Expected variable declaration in method receiver, found `%s`", v.peek(0).Contents)
+					}
+				}
+			*/
 		}
 
 		// 函数名

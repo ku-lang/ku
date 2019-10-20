@@ -27,6 +27,8 @@ const (
 	KEYWORD_TRUE      string = "true"
 	KEYWORD_USE       string = "use"
 	KEYWORD_VOID      string = "void"
+	KEYWORD_THIS      string = "this"
+	KEYWORD_IN        string = "in"
 )
 
 var keywordList = []string{
@@ -56,6 +58,8 @@ var keywordList = []string{
 	KEYWORD_TRUE,
 	KEYWORD_USE,
 	KEYWORD_VOID,
+	KEYWORD_THIS,
+	KEYWORD_IN,
 }
 
 // Contains a map with all keywords as keys, and true as values

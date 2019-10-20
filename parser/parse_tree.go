@@ -219,6 +219,7 @@ type VarDeclNode struct {
 	Mutable LocatedString
 
 	IsImplicit           bool
+	IsMethodReceiver     bool
 	ReceiverGenericSigil *GenericSigilNode
 }
 
