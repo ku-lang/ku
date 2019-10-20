@@ -624,8 +624,14 @@ func (v *parser) parseTypeDecl(isTopLevel bool) *TypeDeclNode {
 		v.err("Cannot use reserved keyword `%s` as type name", name.Contents)
 	}
 
-	// 接着解析具体类型
-	typ := v.parseType(true, false, true)
+	// 如果直接遇到"{"，则认为后面是一个struct结构体声明。
+	var typ ParseNode
+	if v.tokenMatches(0, lexer.Separator, "{") {
+		typ = v.parseStructType(false) // 这里的结构体不需要 struct 关键字
+	} else {
+		// 解析其他具体类型
+		typ = v.parseType(true, false, true)
+	}
 
 	// 根据解析结果构造语法节点
 	res := &TypeDeclNode{
