@@ -33,7 +33,7 @@ func expectType(s *SemanticAnalyzer, loc ast.Locatable, expect *ast.TypeReferenc
 		}
 	}
 
-	s.Err(loc, "Mismatched types: %s and %s", expect.String(), exprType.String())
+	s.Err(loc, "Mismatched types: want %s, got %s", expect.String(), exprType.String())
 }
 
 type TypeCheck struct {

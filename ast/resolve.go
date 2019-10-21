@@ -272,6 +272,7 @@ func (v *Resolver) ResolveNode(node *Node) {
 		v.EnterScope()
 		v.pushFunction(n.Function)
 
+		// 将this变量插入到当前scope中
 		if n.Function.Receiver != nil {
 			if v.curScope.InsertVariable(n.Function.Receiver.Variable, false) != nil {
 				v.err(n, "Illegal redeclaration of variable `%s`", n.Function.Receiver.Variable.Name)

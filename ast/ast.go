@@ -962,19 +962,19 @@ func (_ CastExpr) NodeName() string {
 	return "typecast expression"
 }
 
-// CallExpr
-
+// CallExpr 函数调用表达式
 type CallExpr struct {
 	nodePos
-	Function       Expr
-	Arguments      []Expr
-	ReceiverAccess Expr // nil if not method or if static
+	Function       Expr // 对应的函数
+	Arguments      []Expr // 参数列表
+	ReceiverAccess Expr // 类接收器 nil if not method or if static
 }
 
 func (_ CallExpr) exprNode() {}
 
 func (v CallExpr) String() string {
 	s := NewASTStringer("CallExpr")
+	s.Add(v.ReceiverAccess)
 	s.Add(v.Function)
 	for _, arg := range v.Arguments {
 		s.Add(arg)

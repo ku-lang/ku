@@ -494,13 +494,25 @@ func (v *parser) parseFunc(lambda bool, topLevelNode bool, static bool) *Functio
 func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
 	defer un(trace(v, "funcheader"))
 
-	fmt.Printf("is static: %v\n", static)
 	// 函数头必须以fun关键字开头。
 	// TODO: 未来应当让lambda不需要使用fun，而是直接 (a int, b int) => a + b 即可
 	if !v.tokenMatches(0, lexer.Identifier, KEYWORD_FUN) {
 		return nil
 	}
 	startToken := v.consumeToken()
+
+	// 如果fun后面有var关键字，表示该方法可以修改对象成员。否则，方法默认是不能够修改对象成员的
+	var mutable *lexer.Token
+	if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
+		mutable = v.consumeToken()
+	}
+	/*
+		var mutable bool
+		if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
+			mutable = true
+			v.consumeToken()
+		}
+	*/
 
 	res := &FunctionHeaderNode{}
 
@@ -514,6 +526,7 @@ func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
 			pos := v.currentToken
 			tok := v.peek(0)
 
+			// TODO: static 和 var 不应当同时出现，应该调整 static 的位置，和var并列，并且判断只能二选一
 			if static {
 				typ := v.parseNamedType()
 				if typ != nil && v.tokenMatches(0, lexer.Separator, ".") {
@@ -527,6 +540,11 @@ func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
 			} else {
 				// 先尝试解析一个类型名称，后面应当接着一个"."
 				typ := v.parseTypeReference(true, false, true)
+				wtyp := typ
+				if mutable != nil {
+					ptyp := &PointerTypeNode{Mutable: mutable != nil, TargetType: typ}
+					wtyp = &TypeReferenceNode{Type: ptyp}
+				}
 
 				if typ != nil && v.tokenMatches(0, lexer.Separator, ".") {
 
@@ -536,9 +554,12 @@ func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
 							Contents: "this",
 							Where:    tok.Where,
 						}),
-						Type:             typ,
+						Type:             wtyp,
 						IsImplicit:       true,
 						IsMethodReceiver: true,
+					}
+					if mutable != nil {
+						res.Receiver.Mutable = NewLocatedString(mutable)
 					}
 					v.expect(lexer.Separator, ".")
 
@@ -784,12 +805,11 @@ func (v *parser) parseParaDecl(isReceiver bool) *VarDeclNode {
 		mutable = v.consumeToken()
 	}
 
-	// 变量名接着一个
+	// 接着是变量名称
 	if !v.tokenMatches(0, lexer.Identifier, "") {
 		v.currentToken = startPos
 		return nil
 	}
-
 	name := v.consumeToken()
 
 	// 变量类型
@@ -1876,7 +1896,7 @@ func (v *parser) parsePointerType() *PointerTypeNode {
 	return res
 }
 
-// parsePointerType 分析引用类型
+// parseReferenceType 分析引用类型
 func (v *parser) parseReferenceType() *ReferenceTypeNode {
 	defer un(trace(v, "referencetype"))
 

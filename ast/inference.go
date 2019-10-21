@@ -1301,6 +1301,21 @@ func (v *Inferrer) Finalize() {
 						n.ReceiverAccess = deref
 					}
 				}
+
+				// Insert a ref in cases where the code tries to call a pointer receiver with a value type
+				if recType := n.Function.GetType().BaseType.(FunctionType).Receiver; recType != nil {
+					accessType := n.ReceiverAccess.GetType()
+
+					if accessType.BaseType.LevelsOfIndirection() == recType.BaseType.LevelsOfIndirection()-1 {
+
+						fmt.Print("Trying to add a pointer for method caller")
+						// TODO: check IsMutable
+						ptr := &PointerToExpr{IsMutable: true, Access: n.ReceiverAccess}
+						ptr.SetPos(n.ReceiverAccess.Pos())
+						n.ReceiverAccess = ptr
+					}
+				}
+
 			}
 
 		case *StructAccessExpr:
@@ -1466,6 +1481,8 @@ func (v *FunctionAccessExpr) SetType(t *TypeReference) {
 	if len(v.GenericArguments) == 0 && len(v.Function.Type.GenericParameters) > 0 {
 		types, err := ExtractTypeVariable(&TypeReference{BaseType: v.Function.Type}, t)
 		if err != nil {
+			log.Errorln("inference", "%s [%s:%d:%d] Unable to infer extract generic arguments for call",
+				util.Red("error:"), v.Pos().Filename, v.Pos().Line, v.Pos().Char)
 			panic(err)
 		}
 
