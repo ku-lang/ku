@@ -379,20 +379,10 @@ func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 			v.consumeToken()
 		}
 	}
-
-	// 解析static属性
-	var static bool
-	if isTopLevel {
-		if v.tokenMatches(0, lexer.Identifier, KEYWORD_STATIC) {
-			static = true
-			v.consumeToken()
-		}
-	}
-
 	// 解析不同类型的定义块
 	if typeDecl := v.parseTypeDecl(isTopLevel); typeDecl != nil { // 类型定义，即type语句
 		res = typeDecl
-	} else if funcDecl := v.parseFuncDecl(isTopLevel, static); funcDecl != nil { // 函数定义
+	} else if funcDecl := v.parseFuncDecl(isTopLevel); funcDecl != nil { // 函数定义
 		res = funcDecl
 	} else if varDecl := v.parseVarDecl(isTopLevel); varDecl != nil { // 变量定义
 		res = varDecl
@@ -417,8 +407,8 @@ func (v *parser) parseDecl(isTopLevel bool) ParseNode {
 }
 
 // parseFuncDecl 解析函数定义
-func (v *parser) parseFuncDecl(isTopLevel bool, static bool) *FunctionDeclNode {
-	fn := v.parseFunc(false, isTopLevel, static)
+func (v *parser) parseFuncDecl(isTopLevel bool) *FunctionDeclNode {
+	fn := v.parseFunc(false, isTopLevel)
 	if fn == nil {
 		return nil
 	}
@@ -430,7 +420,7 @@ func (v *parser) parseFuncDecl(isTopLevel bool, static bool) *FunctionDeclNode {
 
 // parseLambdaExpr 解析lambda函数定义
 func (v *parser) parseLambdaExpr() *LambdaExprNode {
-	fn := v.parseFunc(true, false, false)
+	fn := v.parseFunc(true, false)
 	if fn == nil {
 		return nil
 	}
@@ -443,11 +433,11 @@ func (v *parser) parseLambdaExpr() *LambdaExprNode {
 // parseFunc 分析函数
 // If lambda is true, we're parsing an expression.
 // If lambda is false, we're parsing a proper function declaration.
-func (v *parser) parseFunc(lambda bool, topLevelNode bool, static bool) *FunctionNode {
+func (v *parser) parseFunc(lambda bool, topLevelNode bool) *FunctionNode {
 	defer un(trace(v, "func"))
 
 	// 函数头
-	funcHeader := v.parseFuncHeader(lambda, static)
+	funcHeader := v.parseFuncHeader(lambda)
 	if funcHeader == nil {
 		return nil
 	}
@@ -491,7 +481,7 @@ func (v *parser) parseFunc(lambda bool, topLevelNode bool, static bool) *Functio
 }
 
 // If lambda is true, don't parse name and set Anonymous to true.
-func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
+func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 	defer un(trace(v, "funcheader"))
 
 	// 函数头必须以fun关键字开头。
@@ -506,13 +496,18 @@ func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
 	if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
 		mutable = v.consumeToken()
 	}
-	/*
-		var mutable bool
-		if v.tokenMatches(0, lexer.Identifier, KEYWORD_VAR) {
-			mutable = true
-			v.consumeToken()
-		}
-	*/
+
+	// 解析static属性
+	var static bool
+	if v.tokenMatches(0, lexer.Identifier, KEYWORD_STATIC) {
+		static = true
+		v.consumeToken()
+	}
+
+	// static用于静态内部函数；var用于方法的声明，因此不应该同时出现
+	if mutable != nil && static {
+		v.errPos("static and var functions should not happend at the same time")
+	}
 
 	res := &FunctionHeaderNode{}
 
@@ -526,12 +521,10 @@ func (v *parser) parseFuncHeader(lambda bool, static bool) *FunctionHeaderNode {
 			pos := v.currentToken
 			tok := v.peek(0)
 
-			// TODO: static 和 var 不应当同时出现，应该调整 static 的位置，和var并列，并且判断只能二选一
 			if static {
 				typ := v.parseNamedType()
 				if typ != nil && v.tokenMatches(0, lexer.Separator, ".") {
 					res.StaticReceiverType = typ
-					fmt.Printf("got static receiver: %#v\n", res.StaticReceiverType)
 					v.expect(lexer.Separator, ".")
 				} else {
 					// 解析类型失败，或者后面没有"."，回退到前面的位置，尝试直接解析函数名称
@@ -1681,7 +1674,7 @@ func (v *parser) parseInterfaceType() *InterfaceTypeNode {
 			break
 		}
 
-		function := v.parseFuncHeader(false, false)
+		function := v.parseFuncHeader(false)
 		if function != nil {
 			// TODO trailing comma
 			v.expect(lexer.Separator, ",")

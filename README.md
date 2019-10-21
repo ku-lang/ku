@@ -120,18 +120,19 @@ pub fun main() int {
 - [x] 增加let关键字，表示不可变值的声明。
 - [x] 去掉变量的类型声明中的":"，改成类似Go语言的声明格式。即`var a: int`改为`var a int`；
 - [x] 将C语言的标注从`[c]`改为`[C]`
+- [x] 增加static关键字，用于定义类型内部的静态函数。
+- [ ] 增加var static语句，用于定义类型内部的静态成员。
 - [ ] 将模块访问符号`"::"`改为`"."`。由于结构成员访问符号也是`"."`，因此需要将`VariableAccessExpr`和`StructAccessExpr`合并起来，并处理对应的Resolve/Inference环节。
 - [x] 修改方法定义格式，不再使用类似Go的格式，而是使用类似Kotlin的格式，即`fun Student.sayHello()`
 - [x] 配合上一条，增加this关键字，用来表示当前对象。
-- [ ] 增加static关键字，用于定义类型内部的static变量与函数。注：也可以思考其他的名字空间嵌套方法，而不是沿用C/C++的static思路。比如增加一个namespace关键字，直接声明子名字空间块。
 - [ ] 弄清楚为什么不把CompositeLiteral直接放到Expr中，而是每次都单独判断。换个说法：结构体常量是不是一个表达式？
 - [ ] 深入阅读Ark编译器的代码，理清流程，添加注释，写出一个编译器设计文档。
-- [ ] Ark还没有实现C风格的三段式for循环，需要实现。
+- [ ] 实现`for i in range`。
 - [x] 去掉自定义类型定义中的struct关键字。直接 `type Book { title string }` 即可。即type定义的默认类型是struct
 - [ ] 增加对字符串内联的支持。如"Hello $world!"
 - [ ] 可变参数。类似Go/D的varargs，去掉对C风格varargs的支持，或者限制其只在C交互块中使用。
 - [ ] 实现io::println()的可变参数版本
-- [ ] iterator/range
+- [ ] iterator/yield
 - [ ] 增加对JSON的支持。即语言内置 `[1, 2, 3]`形式的数组，以及 `{key: value, key: value}` 形式的对象。可能要去掉`[]int{1, 2, 3}` 这种形式。
 - [ ] 在lex过程中保留必要的换行符，而不是全部忽略。在语法分析中，应当判断语句结束时的换行符。
 
