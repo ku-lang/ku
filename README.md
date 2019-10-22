@@ -116,24 +116,28 @@ pub fun main() int {
 
 # 近期计划
 
+近期计划改用GitHub的工程管理功能来维护，详见页面：[喾语言编译器内部实现](https://github.com/ku-lang/ku/projects/1)
+
+下面是以前维护的TODO列表，待我把他们全部都移到工程管理页面之后，就会删除
+
 - [x] 将next关键字改为常用的continue
 - [x] 增加let关键字，表示不可变值的声明。
 - [x] 去掉变量的类型声明中的":"，改成类似Go语言的声明格式。即`var a: int`改为`var a int`；
 - [x] 将C语言的标注从`[c]`改为`[C]`
 - [x] 增加static关键字，用于定义类型内部的静态函数。
-- [ ] 增加var static语句，用于定义类型内部的静态成员。
-- [ ] 将模块访问符号`"::"`改为`"."`。由于结构成员访问符号也是`"."`，因此需要将`VariableAccessExpr`和`StructAccessExpr`合并起来，并处理对应的Resolve/Inference环节。
+- [x] 增加var static语句，用于定义类型内部的静态成员。
+- [x] 将模块访问符号`"::"`改为`"."`。由于结构成员访问符号也是`"."`，因此需要将`VariableAccessExpr`和`StructAccessExpr`合并起来，并处理对应的Resolve/Inference环节。
 - [x] 修改方法定义格式，不再使用类似Go的格式，而是使用类似Kotlin的格式，即`fun Student.sayHello()`
 - [x] 配合上一条，增加this关键字，用来表示当前对象。
+- [ ] 增加对JSON的支持。即语言内置 `[1, 2, 3]`形式的数组，以及 `{key: value, key: value}` 形式的对象。可能要去掉`[]int{1, 2, 3}` 这种形式。
 - [ ] 弄清楚为什么不把CompositeLiteral直接放到Expr中，而是每次都单独判断。换个说法：结构体常量是不是一个表达式？
 - [ ] 深入阅读Ark编译器的代码，理清流程，添加注释，写出一个编译器设计文档。
-- [ ] 实现`for i in range`。
+- [ ] 实现`for i in range`。注：这个功能需要首先实现好range/iterator功能。
 - [x] 去掉自定义类型定义中的struct关键字。直接 `type Book { title string }` 即可。即type定义的默认类型是struct
-- [ ] 增加对字符串内联的支持。如"Hello $world!"
 - [ ] 可变参数。类似Go/D的varargs，去掉对C风格varargs的支持，或者限制其只在C交互块中使用。
 - [ ] 实现io::println()的可变参数版本
+- [ ] 增加对字符串内联的支持。如"Hello $world!"。注：这个功能需要实现std.string.format功能，而它又需要先实现函数的可变参数功能。
 - [ ] iterator/yield
-- [ ] 增加对JSON的支持。即语言内置 `[1, 2, 3]`形式的数组，以及 `{key: value, key: value}` 形式的对象。可能要去掉`[]int{1, 2, 3}` 这种形式。
 - [ ] 在lex过程中保留必要的换行符，而不是全部忽略。在语法分析中，应当判断语句结束时的换行符。
 
 # 中期计划
@@ -146,6 +150,23 @@ pub fun main() int {
 - [ ] 2020-04: v0.6, 实现http/web库，可以建立一个http/web服务。
 - [ ] 2020-05: v0.7, 实现基本的项目依赖管理功能。并利用http/web库搭建一个喾语言项目仓库。
 - [ ] 2020-06: v0.8, 实现debug相关的功能
+- [ ] 2020-07: v0.9, 实现基本的REPL
+- [ ] 2020-07: v0.10, 实现基本的UI库
+
+# 远期计划
+
+- 提高编译速度
+  - [ ] 实现增量编译。先期先实现文件级别的增量编译；未来计划设计粒度更细的增量编译，比如函数级别或其他定义块级别。
+  - [ ] 利用GO语言的特性，把编译器做成异步化、并行化、分布式的服务器
+  - [ ] 引入Redis或其他内存数据库，用于缓存增量编译的中间结果，最大程度地避免重复编译，增加编译速度。
+
+- LSP：集成Language Server Protocol，并制作常见IDE/Editor的插件：Vim/VSCode/Idea等。
+
+- IDE：在UI库的基础上实现一个喾语言的IDE。
+
+- 图形化的Debug工具。在LLDB的基础上，实现一个可视化的Debug工具。可以独立运行，也集成到IDE中。
+
+- 提高运行速度，深度优化编译代码
 
 至此，ku语言基本到达可以发布的状况。
 
