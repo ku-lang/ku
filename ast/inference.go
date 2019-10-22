@@ -1285,6 +1285,7 @@ func (v *Inferrer) Finalize() {
 				fn.Accesses = append(fn.Accesses, fae)
 			}
 
+			log.Debugln("inference", "infering Call:%#v", n)
 			if n.Function != nil {
 				if _, ok := n.Function.GetType().BaseType.(FunctionType); !ok {
 					v.errPos(n.Function.Pos(), "Attempt to call non-function `%s`", n.Function.GetType().String())

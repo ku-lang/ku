@@ -72,6 +72,17 @@ type NameNode struct {
 	Name    LocatedString
 }
 
+func (n NameNode) Split() (NameNode, LocatedString) {
+	if len(n.Modules) > 0 {
+		res := NameNode{}
+		res.Modules = n.Modules[:len(n.Modules)-1]
+		res.Name = n.Modules[len(n.Modules)-1]
+		return res, n.Name
+	} else {
+		return NameNode{}, LocatedString{}
+	}
+}
+
 // directives
 type LinkDirectiveNode struct {
 	baseNode

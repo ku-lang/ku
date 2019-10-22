@@ -17,7 +17,8 @@ type UnresolvedName struct {
 func (v UnresolvedName) String() string {
 	ret := ""
 	for _, mod := range v.ModuleNames {
-		ret += mod + "::"
+		//ret += mod + "::"
+		ret += mod + "."
 	}
 	return ret + v.Name
 }
@@ -186,6 +187,31 @@ func (v *Resolver) err(thing Locatable, err string, stuff ...interface{}) {
 	os.Exit(util.EXIT_FAILURE_SEMANTIC)
 }
 
+func (v *Resolver) tryGetIdent(loc Locatable, name UnresolvedName) *Ident {
+	// TODO: Decide whether we should actually allow shadowing a module
+	//fmt.Printf("[CurScope]:%#v\n", v.curScope)
+	ident := v.curScope.GetIdent(name)
+	if ident == nil {
+		ident = v.curSubmod.UseScope.GetIdent(name)
+	}
+
+	if ident == nil {
+		log.Errorln("resolve", "Cannot resolve `%s`", name.String())
+		return nil
+	}
+
+	if !ident.Public && ident.Scope.Module != v.module {
+		log.Errorln("resolve", "Cannot access private identifier `%s`", name)
+	}
+
+	// make sure lambda can't access variables of enclosing function
+	if ident.Scope.Function != nil && v.currentFunction() != ident.Scope.Function {
+		log.Errorln("resolve", "Cannot access local identifier `%s` from lambda", name)
+	}
+
+	return ident
+}
+
 func (v *Resolver) getIdent(loc Locatable, name UnresolvedName) *Ident {
 	// TODO: Decide whether we should actually allow shadowing a module
 	//fmt.Printf("[CurScope]:%#v\n", v.curScope)
@@ -321,44 +347,75 @@ func (v *Resolver) ResolveNode(node *Node) {
 		n.Type = v.ResolveTypeReference(n, n.Type)
 
 	case *VariableAccessExpr:
+
 		// TODO: Check if we can clean this up
 		// NOTE: Here we check whether this is actually a variable access or an enum member.
 		//fmt.Printf("vaexpr:%#v\n", n.Name)
-		if len(n.Name.ModuleNames) > 0 {
-			enumName, memberName := n.Name.Split()
-			ident := v.getIdent(n, enumName)
-			if ident != nil && ident.Type == IDENT_TYPE {
-				itype := ident.Value.(Type)
-				if etype, ok := itype.ActualType().(EnumType); ok {
-					if _, ok := etype.GetMember(memberName); !ok {
-						v.err(n, "No such member in enum `%s`: `%s`", itype.TypeName(), memberName)
+		/*
+			if len(n.Name.ModuleNames) > 0 {
+				enumName, memberName := n.Name.Split()
+				ident := v.getIdent(n, enumName)
+				if ident != nil && ident.Type == IDENT_TYPE {
+					itype := ident.Value.(Type)
+					if etype, ok := itype.ActualType().(EnumType); ok {
+						if _, ok := etype.GetMember(memberName); !ok {
+							v.err(n, "No such member in enum `%s`: `%s`", itype.TypeName(), memberName)
+							break
+						}
+
+						enum := &EnumLiteral{}
+						enum.Member = memberName
+						enum.Type = &TypeReference{
+							BaseType: UnresolvedType{
+								Name: enumName,
+							},
+							GenericArguments: v.ResolveTypeReferences(n, n.GenericArguments),
+						}
+						enum.Type = v.ResolveTypeReference(n, enum.Type)
+						enum.SetPos(n.Pos())
+
+						*node = enum
 						break
 					}
-
-					enum := &EnumLiteral{}
-					enum.Member = memberName
-					enum.Type = &TypeReference{
-						BaseType: UnresolvedType{
-							Name: enumName,
-						},
-						GenericArguments: v.ResolveTypeReferences(n, n.GenericArguments),
-					}
-					enum.Type = v.ResolveTypeReference(n, enum.Type)
-					enum.SetPos(n.Pos())
-
-					*node = enum
-					break
 				}
 			}
-		}
+		*/
 
+		var memberName string
 		//fmt.Printf("[try name 1]: %#v\n", n.Name)
-		ident := v.getIdent(n, n.Name)
-		//fmt.Printf("[try name]: %#v\n", n.Name)
-		if ident == nil {
 
-			// do nothing
-		} else if ident.Type == IDENT_FUNCTION {
+		ident := v.tryGetIdent(n, n.Name)
+		var wrap *StructAccessExpr
+		//fmt.Printf("[try name]: %#v\n", n.Name)
+		for ident == nil && len(n.Name.ModuleNames) > 0 {
+			log.Debugln("resolve", "trying to resolve VariableAccessNode as StructAccessNode: %#v", n)
+			// 如果名字获取不到，说明有可能实际是StructAccess，尝试向前移动一个词，重新检验
+			var parentName UnresolvedName
+			parentName, memberName = n.Name.Split()
+			n.Name = parentName
+			log.Debugln("resolve", "new name: %#v; member: %#v", parentName, memberName)
+			ident = v.tryGetIdent(n, parentName)
+			log.Debugln("resolve", "ident: %#v", ident)
+
+			sae := &StructAccessExpr{
+				Member:         memberName,
+				Struct:         n,
+				ParentFunction: v.currentFunction(),
+			}
+			if wrap == nil {
+				wrap = sae
+			} else {
+				wrap.Struct = sae
+			}
+
+		}
+		if wrap != nil {
+			*node = wrap
+			(*node).SetPos(n.Pos())
+		}
+		log.Debugln("resolve", "strctAccessExpr:%#v", *node)
+
+		if ident.Type == IDENT_FUNCTION {
 			fan := &FunctionAccessExpr{
 				Function:         ident.Value.(*Function),
 				GenericArguments: v.ResolveTypeReferences(n, n.GenericArguments),
@@ -374,7 +431,7 @@ func (v *Resolver) ResolveNode(node *Node) {
 			v.err(n, "Expected variable identifier, found %s `%s`", ident.Type, n.Name)
 		}
 
-		if n.Variable.Type != nil {
+		if n.Variable != nil && n.Variable.Type != nil {
 			n.Variable.Type = v.ResolveTypeReference(n, n.Variable.Type)
 		}
 
@@ -468,9 +525,40 @@ func (v *Resolver) ResolveNode(node *Node) {
 		}
 
 	case *CallExpr:
+		log.Debugln("resolve", "checking callexpr:%#v", n.Function)
+
 		// NOTE: Here we check whether this is a call or an enum tuple lit.
 		// way too much duplication with all this enum literal creating stuff
 		if vae, ok := n.Function.(*VariableAccessExpr); ok {
+
+			ident := v.tryGetIdent(n, vae.Name)
+			var wrap *StructAccessExpr
+			for ident == nil && len(vae.Name.ModuleNames) > 0 {
+				log.Debugln("resolve", "trying to resolve VariableAccessNode as StructAccessNode: %#v", n)
+				// 如果名字获取不到，说明有可能实际是StructAccess，尝试向前移动一个词，重新检验
+				parentName, memberName := vae.Name.Split()
+				vae.Name = parentName
+				log.Debugln("resolve", "new name: %#v; member: %#v", parentName, memberName)
+				ident = v.tryGetIdent(n, parentName)
+				log.Debugln("resolve", "ident: %#v", ident)
+				sae := &StructAccessExpr{
+					Member:         memberName,
+					Struct:         vae,
+					ParentFunction: v.currentFunction(),
+				}
+				if wrap == nil {
+					wrap = sae
+				} else {
+					wrap.Struct = sae
+				}
+
+				log.Debugln("resolve", "strctAccessExpr:%#v", wrap)
+			}
+			if wrap != nil {
+				n.Function = wrap
+				n.ReceiverAccess = vae
+			}
+
 			if len(vae.Name.ModuleNames) > 0 {
 				enumName, memberName := vae.Name.Split()
 				ident := v.getIdent(n, enumName)

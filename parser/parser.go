@@ -340,7 +340,8 @@ func (v *parser) parseName() *NameNode {
 		part := v.expect(lexer.Identifier, "")
 		parts = append(parts, NewLocatedString(part))
 
-		if !v.tokenMatches(0, lexer.Operator, "::") {
+		//if !v.tokenMatches(0, lexer.Operator, "::") {
+		if !v.tokenMatches(0, lexer.Separator, ".") {
 			break
 		}
 		v.consumeToken()
@@ -510,6 +511,7 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 	}
 
 	res := &FunctionHeaderNode{}
+	var name *LocatedString
 
 	if !lambda {
 		// 方法的类名。
@@ -523,64 +525,96 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 
 			if static {
 				typ := v.parseNamedType()
-				if typ != nil && v.tokenMatches(0, lexer.Separator, ".") {
-					res.StaticReceiverType = typ
-					v.expect(lexer.Separator, ".")
-				} else {
-					// 解析类型失败，或者后面没有"."，回退到前面的位置，尝试直接解析函数名称
+				if typ == nil {
 					v.currentToken = pos
+				} else {
+					if v.tokenMatches(0, lexer.Separator, ".") { // 后面还有 ".name" 的形式
+						res.StaticReceiverType = typ
+						v.expect(lexer.Separator, ".")
+					} else if v.tokenMatches(0, lexer.Separator, "(") { // 已经解析到了"("说明解析过头了，把名字也包含进类型了
+						if len(typ.Name.Modules) == 0 { // 只解析出了一个名字，在static情况下应该是错误的
+							v.expect(lexer.Separator, ".")
+						} else { // 从typ里退出一个名字来作为函数名
+							typeName, funName := typ.Name.Split()
+							typ.Name = &typeName
+							name = &funName
+							res.StaticReceiverType = typ
+						}
+					}
 				}
 			} else {
 				// 先尝试解析一个类型名称，后面应当接着一个"."
 				typ := v.parseTypeReference(true, false, true)
 				wtyp := typ
-				if mutable != nil {
-					ptyp := &PointerTypeNode{Mutable: mutable != nil, TargetType: typ}
-					wtyp = &TypeReferenceNode{Type: ptyp}
-				}
 
-				if typ != nil && v.tokenMatches(0, lexer.Separator, ".") {
-
-					res.Receiver = &VarDeclNode{
-						Name: NewLocatedString(&lexer.Token{
-							Type:     lexer.Identifier,
-							Contents: "this",
-							Where:    tok.Where,
-						}),
-						Type:             wtyp,
-						IsImplicit:       true,
-						IsMethodReceiver: true,
-					}
-					if mutable != nil {
-						res.Receiver.Mutable = NewLocatedString(mutable)
-					}
-					v.expect(lexer.Separator, ".")
-
-				} else {
-					// 解析类型失败，或者后面没有"."，回退到前面的位置，尝试直接解析函数名称
+				if typ == nil {
 					v.currentToken = pos
+				} else {
+					if v.tokenMatches(0, lexer.Separator, ".") { // 后面还有 ".name" 的形式
+						if mutable != nil {
+							ptyp := &PointerTypeNode{Mutable: mutable != nil, TargetType: typ}
+							wtyp = &TypeReferenceNode{Type: ptyp}
+						}
+						res.Receiver = &VarDeclNode{
+							Name: NewLocatedString(&lexer.Token{
+								Type:     lexer.Identifier,
+								Contents: "this",
+								Where:    tok.Where,
+							}),
+							Type:             wtyp,
+							IsImplicit:       true,
+							IsMethodReceiver: true,
+						}
+						if mutable != nil {
+							res.Receiver.Mutable = NewLocatedString(mutable)
+						}
+						v.expect(lexer.Separator, ".")
+					} else if v.tokenMatches(0, lexer.Separator, "(") { // 已经解析到了"("说明解析过头了，把名字也包含进类型了
+						if namedType, ok := typ.Type.(*NamedTypeNode); ok {
+							if len(namedType.Name.Modules) == 0 { // 只解析出了一个名字，那么这个名字应该就是函数名
+								if mutable != nil { // 在有var的情况下，后面应该还有个 .name，因此这个情况是编译错误
+									v.expect(lexer.Separator, ".")
+								} else { // 退回到解析之前，让后面的代码直接解析函数名（及泛型）
+									v.currentToken = pos
+								}
+							} else { // 从typ里退出一个名字来作为函数名
+								typeName, funName := namedType.Name.Split()
+								namedType.Name = &typeName
+								if mutable != nil {
+									ptyp := &PointerTypeNode{Mutable: mutable != nil, TargetType: typ}
+									wtyp = &TypeReferenceNode{Type: ptyp}
+								}
+								res.Receiver = &VarDeclNode{
+									Name: NewLocatedString(&lexer.Token{
+										Type:     lexer.Identifier,
+										Contents: "this",
+										Where:    tok.Where,
+									}),
+									Type:             wtyp,
+									IsImplicit:       true,
+									IsMethodReceiver: true,
+								}
+								if mutable != nil {
+									res.Receiver.Mutable = NewLocatedString(mutable)
+								}
+								name = &funName
+								// Deal with genericarguments
+							}
+						} else {
+							log.Debugln("parser", "parsed a non namednode in fun header:%#v", typ)
+						}
+					}
 				}
 			}
-
-			/*
-				// static 方法，只有类名，没有对象名。实例 fun (String) make(len int) string
-				if v.tokensMatch(lexer.Identifier, "", lexer.Separator, ")") {
-					res.StaticReceiverType = v.parseNamedType()
-					if res.StaticReceiverType == nil {
-						v.errToken("Expected type name in method receiver, found `%s`", v.peek(0).Contents)
-					}
-				} else { // 普通方法，有对象名和类名
-					res.Receiver = v.parseParaDecl(true)
-					if res.Receiver == nil {
-						v.errToken("Expected variable declaration in method receiver, found `%s`", v.peek(0).Contents)
-					}
-				}
-			*/
 		}
 
-		// 函数名
-		name := v.expect(lexer.Identifier, "")
-		res.Name = NewLocatedString(name)
+		if name == nil {
+			// 函数名
+			fname := v.expect(lexer.Identifier, "")
+			res.Name = NewLocatedString(fname)
+		} else {
+			res.Name = *name
+		}
 	}
 
 	// 函数名后面接着泛型声明
@@ -2005,7 +2039,7 @@ func (v *parser) parseArrayType() *ArrayTypeNode {
 	return res
 }
 
-// parseNamedType 解析简单类型名称
+// parseNamedType 解析类型名称
 func (v *parser) parseNamedType() *NamedTypeNode {
 	defer un(trace(v, "typereference"))
 
@@ -2181,7 +2215,7 @@ func (v *parser) parsePrimaryExpr() ParseNode {
 		res = unaryExpr
 	} else if castExpr := v.parseCastExpr(); castExpr != nil { // 类型转化表达式
 		res = castExpr
-	} else if name := v.parseName(); name != nil { // 泛型表达式？？
+	} else if name := v.parseName(); name != nil { // 变量访问表达式
 		startPos := v.currentToken
 
 		// Handle discard access

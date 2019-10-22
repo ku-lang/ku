@@ -128,7 +128,8 @@ func (v *ModuleName) String() string {
 	for idx, parent := range v.Parts {
 		buf.WriteString(parent)
 		if idx < len(v.Parts)-1 {
-			buf.WriteString("::")
+			//buf.WriteString("::")
+			buf.WriteString(".")
 		}
 
 	}

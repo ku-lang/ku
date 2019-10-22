@@ -965,9 +965,9 @@ func (_ CastExpr) NodeName() string {
 // CallExpr 函数调用表达式
 type CallExpr struct {
 	nodePos
-	Function       Expr // 对应的函数
+	Function       Expr   // 对应的函数
 	Arguments      []Expr // 参数列表
-	ReceiverAccess Expr // 类接收器 nil if not method or if static
+	ReceiverAccess Expr   // 类接收器 nil if not method or if static
 }
 
 func (_ CallExpr) exprNode() {}

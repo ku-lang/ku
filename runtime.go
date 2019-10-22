@@ -1,6 +1,8 @@
 package main
 
 import (
+	"io/ioutil"
+
 	"github.com/ku-lang/ku/ast"
 	"github.com/ku-lang/ku/lexer"
 	"github.com/ku-lang/ku/parser"
@@ -62,11 +64,16 @@ func LoadRuntime() *ast.Module {
 		Parts:   make(map[string]*ast.Submodule),
 	}
 
-	// 注：这里没有读取runtime.ku文件，而是直接写在代码中。
+	// TODO: 从配置文件里读取runtime.ku的路径
+	runtimePath := "/usr/local/ku/lib/runtime.ku"
+	bytes, err := ioutil.ReadFile(runtimePath)
+	if err != nil {
+		panic("INIT ERROR: Cannot load runtime.ku in " + runtimePath)
+	}
 	sourcefile := &lexer.Sourcefile{
 		Name:     "runtime",
 		Path:     "runtime.ku",
-		Contents: []rune(RuntimeSource),
+		Contents: []rune(string(bytes)),
 		NewLines: []int{-1, -1},
 	}
 

@@ -117,6 +117,18 @@ func (v *Context) Build(output string, outputType codegen.OutputType, usedCodege
 	// 语法分析（其中也包含了词法分析），生成AST语法树
 	v.parseFiles()
 
+	// debug：打印parse的AST树
+	for _, module := range v.modules {
+		for _, submod := range module.Parts {
+			// 打印AST
+			log.Debugln("main", "AST of submodule `%s/%s`:", module.Name, submod.File.Name)
+			for _, node := range submod.Nodes {
+				log.Debugln("main", "%s", node.String())
+			}
+			log.Debugln("main", "")
+		}
+	}
+
 	// 变量解析
 	hasMainFunc := false
 	log.Timed("resolve phase", "", func() {
@@ -224,7 +236,8 @@ func (v *Context) parseFiles() {
 		}
 
 		// 将整个文件作为一个模块加入待分析列表
-		modname := &ast.ModuleName{Parts: strings.Split(v.Input, "::")}
+		//modname := &ast.ModuleName{Parts: strings.Split(v.Input, "::")}
+		modname := &ast.ModuleName{Parts: strings.Split(v.Input, ".")}
 		v.modulesToRead = append(v.modulesToRead, modname)
 	}
 
