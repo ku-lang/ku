@@ -97,6 +97,7 @@ func (v *ConstructorType) ActualType() Type {
 	return v
 }
 
+// Constraint 条件
 // Constraint represents a single constraint to be solved.
 // It consists of two "sides", each representing a type or a type variable.
 type Constraint struct {
@@ -122,6 +123,7 @@ func (v *Constraint) Subs(id int, side Side) *Constraint {
 	return res
 }
 
+// Side的种类，分别是：1. 类型变量（IdentSide），2. 具体类型 （TypeSide）
 type SideType int
 
 const (
@@ -129,43 +131,45 @@ const (
 	TypeSide
 )
 
+// Side是类型条件中的两个对立面。用来进行类型匹配。
 // Side represents a single side of a constraint.
 // It represents either a type (TypeSide) or a type variable (IdentSide)
 type Side struct {
-	SideType SideType
-	Id       int
-	Type     *TypeReference
+	SideType SideType       // Side的类型
+	Id       int            // 如果是类型变量，则使用Id存放变量的Id
+	Type     *TypeReference // 如果是具体类型，则使用Type指向其类型
 }
 
-// SideFromType creates a new Side from the given type.
-// If the given type is a TypeVariable an IdentSide will be created, otherwise
-// a TypeSide will be created.
+// SideFromType 用指定类型t创建一个Side对象
+// 如果t是一个类型变量（TypeVariable），则创建一个IdentSide；否则创建一个TypeSide
 func SideFromType(t *TypeReference) Side {
+	// 类型变量
 	if tv, ok := t.BaseType.(TypeVariable); ok {
 		return Side{SideType: IdentSide, Id: tv.Id}
 	}
+	// 具体类型
 	return Side{SideType: TypeSide, Type: t}
 }
 
-// Subs descends through the given Side, and replaces all occurenes of the
-// given id with the contents of the Side `what`.
+// Subs 批量类型替换。
+// 这个方法会沿着Side v向下遍历，将所有遇到的变量值为id的Side替换为给定的what值
 func (v Side) Subs(id int, what Side) Side {
 	switch v.SideType {
-	// If this is an IdentSide we check if the id matches and return the
-	// replacement side in case of a match.
+
+	// 如果v是一个IdentSide，则判断它的Id是否与参数id相同，如果匹配，则进行替换并返回。
 	case IdentSide:
 		if v.Id == id {
 			return what
 		}
 		return v
 
-	// If this is a TypeSide we create a type from the `what` side,
-	// and then delegate the substitution to `SubsType`
+	// 如果v是一个TypeSide则我们根据what的类型，创建不同的参数，然后调用SubsType，生成最终的结果。
 	case TypeSide:
 		var nt *TypeReference
 		if what.SideType == TypeSide {
 			nt = SubsType(v.Type, id, what.Type)
 		} else {
+			// 注：为什么用这样的TypeReference，而不是 TypeRefernce{BaseType: what}？
 			nt = SubsType(v.Type, id, &TypeReference{BaseType: TypeVariable{Id: what.Id}})
 		}
 		return Side{SideType: TypeSide, Type: nt}
@@ -175,6 +179,7 @@ func (v Side) Subs(id int, what Side) Side {
 	}
 }
 
+// 递归遍历typ节点下的所有节点，进行类型替换
 // SubsType descends through a type and replaces all occurences of the given
 // type variable by `what`
 func SubsType(typ *TypeReference, id int, what *TypeReference) *TypeReference {
@@ -186,6 +191,7 @@ func SubsType(typ *TypeReference, id int, what *TypeReference) *TypeReference {
 		return typ
 
 	case *ConstructorType:
+		// 根据泛型类型，替换ConstructorType的所有参数的类型
 		// Descend through all arguments
 		nargs := make([]*TypeReference, len(t.Args))
 		for idx, arg := range t.Args {
@@ -264,6 +270,7 @@ func SubsType(typ *TypeReference, id int, what *TypeReference) *TypeReference {
 			GenericArguments: typ.GenericArguments,
 		}
 
+	// 对于函数类型：需要对返回类型、所有参数类型都进行替换
 	case FunctionType:
 		// Descend into return type
 		newRet := SubsType(t.Return, id, what)
@@ -284,6 +291,7 @@ func SubsType(typ *TypeReference, id int, what *TypeReference) *TypeReference {
 			GenericArguments: typ.GenericArguments,
 		}
 
+		// 对于元组类型，把所有成员都进行替换
 	case TupleType:
 		// Descend into member types
 		nm := make([]*TypeReference, len(t.Members))
@@ -296,19 +304,19 @@ func SubsType(typ *TypeReference, id int, what *TypeReference) *TypeReference {
 			GenericArguments: typ.GenericArguments,
 		}
 
-	case ArrayType:
+	case ArrayType: // 替换其元素类型，数组的类型则替换为元素类型的数组
 		return &TypeReference{
 			BaseType:         ArrayOf(SubsType(t.MemberType, id, what), t.IsFixedLength, t.Length),
 			GenericArguments: typ.GenericArguments,
 		}
 
-	case PointerType:
+	case PointerType: // 与数组相似
 		return &TypeReference{
 			BaseType:         PointerTo(SubsType(t.Addressee, id, what), t.IsMutable),
 			GenericArguments: typ.GenericArguments,
 		}
 
-	case ReferenceType:
+	case ReferenceType: // 同上
 		return &TypeReference{
 			BaseType:         ReferenceTo(SubsType(t.Referrer, id, what), t.IsMutable),
 			GenericArguments: typ.GenericArguments,
@@ -396,12 +404,14 @@ func (v *Inferrer) Function() *Function {
 	return v.Functions[len(v.Functions)-1]
 }
 
+// Infer 类型推导模块的主函数
 func Infer(submod *Submodule) {
 	if submod.inferred {
 		return
 	}
 	submod.inferred = true
 
+	// 先对引用的模块进行类型推导，这样，在对本模块进行推导时，才能得到有效的类型数据
 	for _, used := range submod.UseScope.UsedModules {
 		for _, submod := range used.Parts {
 			Infer(submod)
@@ -409,13 +419,16 @@ func Infer(submod *Submodule) {
 	}
 
 	log.Timed("inferring submodule", submod.File.Name, func() {
+		// 推导本模块的所有AST节点
 		inf := &Inferrer{
 			Submodule:   submod,
 			Typeds:      make(map[int]*AnnotatedTyped),
 			TypedLookup: make(map[Typed]*AnnotatedTyped),
 		}
+		// 利用visit模式遍历AST树
 		vis := NewASTVisitor(inf)
 		vis.VisitSubmodule(submod)
+		// 遍历完之后，进行真正的替换操作
 		inf.Finalize()
 	})
 
@@ -469,6 +482,7 @@ func (v *Inferrer) PostVisit(node *Node) {
 	}
 }
 
+// 对每一个AST节点进行类型推导
 func (v *Inferrer) Visit(node *Node) bool {
 	switch n := (*node).(type) {
 	case *FunctionDecl:
@@ -485,15 +499,18 @@ func (v *Inferrer) Visit(node *Node) bool {
 	switch n := (*node).(type) {
 	case *VariableDecl:
 		if n.Assignment != nil {
-			if n.Variable.Type != nil {
+			if n.Variable.Type != nil { // 如果变量指定了类型，则赋值语句的类型应当设为这个类型
 				n.Assignment.SetType(n.Variable.Type)
-			} else if n.Assignment.GetType() != nil {
+			} else if n.Assignment.GetType() != nil { // 如果变量未指定类型，而赋值语句可以获得类型，则将变量设置为该类型
 				if _, isSubst := n.Assignment.GetType().BaseType.(*SubstitutionType); !isSubst {
 					n.Variable.SetType(n.Assignment.GetType())
 				}
 			}
+			// 处理赋值语句内部，获得其TypeVariable的ID
 			aid := v.HandleExpr(n.Assignment)
+			// 处理变量，获得它的TypeVariable的ID
 			vid := v.HandleTyped(n.Pos(), n.Variable)
+			// 这两个类型变量应当满足相等条件
 			v.AddEqualsConstraint(vid, aid)
 		}
 
@@ -592,40 +609,41 @@ func (v *Inferrer) Visit(node *Node) bool {
 			BaseType: tupleOf(accIds...),
 		})
 
-	case *CallStat:
+	case *CallStat: // 调用语句，直接处理其CallExpr
 		v.HandleExpr(n.Call)
 
-	case *DeferStat:
+	case *DeferStat: // 同上
 		v.HandleExpr(n.Call)
 
-	case *IfStat:
+	case *IfStat: // 对于if语句，递归处理其表达式，并且添加类型条件：其表达式的返回值类型应当是一个bool型
 		for _, expr := range n.Exprs {
 			id := v.HandleExpr(expr)
 			v.AddSimpleIsConstraint(id, &TypeReference{BaseType: PRIMITIVE_bool})
 		}
 
-	case *ReturnStat:
+	case *ReturnStat: // 返回语句，处理其返回值表达式，并且它的类型应当与函数的返回值类型相同
 		if n.Value != nil {
 			id := v.HandleExpr(n.Value)
 			v.AddSimpleIsConstraint(id, v.Function().Type.Return)
 		}
 
-	case *LoopStat:
+	case *LoopStat: //  循环语句，处理其循环条件表达式，且表达式返回值应当是bool类型
 		if n.Condition != nil {
 			id := v.HandleExpr(n.Condition)
 			v.AddSimpleIsConstraint(id, &TypeReference{BaseType: PRIMITIVE_bool})
 		}
 
-	case *MatchStat:
+	case *MatchStat: // match语句，先处理其目标表达式，再逐个处理分支
 		// TODO: Make sure this is enough to hande match on integer and string aswell
 		targetId := v.HandleExpr(n.Target)
 
 		for pattern, _ := range n.Branches {
 			patternId := v.HandleExpr(pattern)
 
+			// 如果匹配目标设定了类型，那么各个分支的类型应当设置为这个类型
 			if n.Target.GetType() != nil {
 				pattern.SetType(n.Target.GetType())
-			} else {
+			} else { // 否则，应当满足目标类型与分支类型相等的条件
 				v.AddEqualsConstraint(patternId, targetId)
 			}
 		}
@@ -644,37 +662,36 @@ func (v *Inferrer) HandleExpr(expr Expr) int {
 	return v.HandleTyped(expr.Pos(), expr)
 }
 
+// 处理各种表达式
 func (v *Inferrer) HandleTyped(pos lexer.Position, typed Typed) int {
-	// If we have already handled this type, return now.
+	// 如果这个表达式已经处理过，就不用再处理了，直接返回其类型ID
 	if ann, ok := v.TypedLookup[typed]; ok {
 		return ann.Id
 	}
 
-	// Wrap and store the typed so we can access it later
+	// 分配一个新的类型ID，并存储到类型推导器中
 	ann := &AnnotatedTyped{Pos: pos, Id: v.IdCount, Typed: typed}
 	v.Typeds[ann.Id] = ann
 	v.TypedLookup[typed] = ann
 	v.IdCount++
 
+	// 根据表达式的具体类型分别处理
 	// Switch on the type of the typed. If it is a `Variable`, any expression,
 	// or a literal of some sort, it should be handled here.
 	switch typed := typed.(type) {
-	case *BinaryExpr:
+	case *BinaryExpr: // 二元操作表达式，应当分别处理表达式双方分支，并根据具体操作符类型添加条件
 		a := v.HandleExpr(typed.Lhand)
 		b := v.HandleExpr(typed.Rhand)
 		switch typed.Op.Category() {
 
-		// If we're dealing with a comparison operation, we know that both
-		// sides must be of the same type, and that the result will be a bool
+		// 如果是比较型的操作符，则表达式两边的类型应当相同（EqualConstraint），且表达式的最终结果应当是bool类型
 		case parser.OP_COMPARISON:
 			if typed.Lhand.GetType() == nil || typed.Rhand.GetType() == nil {
 				v.AddEqualsConstraint(a, b)
 			}
 			v.AddSimpleIsConstraint(ann.Id, &TypeReference{BaseType: PRIMITIVE_bool})
 
-		// If we're dealing with bitwise operations we know that both sides
-		// must be the same type, and that the result will be of that type
-		// aswell.
+		// 如果是比特操作符，与前面相似，双方应当是相同类型，且与结果类型也相同
 		case parser.OP_BITWISE:
 			if typed.Lhand.GetType() != nil && typed.Rhand.GetType() != nil {
 				v.AddSimpleIsConstraint(ann.Id, typed.Lhand.GetType())
@@ -683,9 +700,7 @@ func (v *Inferrer) HandleTyped(pos lexer.Position, typed Typed) int {
 				v.AddEqualsConstraint(ann.Id, a)
 			}
 
-		// If we're dealing with an arithmetic operation we know that both
-		// sides must be of the same type, and that the result will be of that
-		// type aswell.
+		// 数值操作符，与上面类似
 		// TODO: These assumptions don't hold once we add operator overloading
 		case parser.OP_ARITHMETIC:
 			if typed.Lhand.GetType() != nil && typed.Rhand.GetType() != nil {
@@ -695,8 +710,7 @@ func (v *Inferrer) HandleTyped(pos lexer.Position, typed Typed) int {
 				v.AddEqualsConstraint(ann.Id, a)
 			}
 
-		// If we're dealing with a logical operation, we know that both sides
-		// must be booleans, and that the result will also be a boolean.
+		// 逻辑操作符，则双边都应当是bool型，而且表达式结果也应当是布尔型
 		case parser.OP_LOGICAL:
 			v.AddSimpleIsConstraint(a, &TypeReference{BaseType: PRIMITIVE_bool})
 			v.AddSimpleIsConstraint(b, &TypeReference{BaseType: PRIMITIVE_bool})
@@ -704,64 +718,82 @@ func (v *Inferrer) HandleTyped(pos lexer.Position, typed Typed) int {
 
 		default:
 			panic("Unhandled binary operator in type inference")
-
 		}
 
-	case *UnaryExpr:
+	case *UnaryExpr: // 一元操作表达式
+		// 先处理其单边表达式
 		id := v.HandleExpr(typed.Expr)
+		// 再根据其操作符添加条件
 		switch typed.Op {
-		// If we're dealing with a logical not the expression being not'ed must
+		// 如果是逻辑非操作符"!"，则单边表达式应当返回bool型，且整个表达式的返回值也是bool型
 		// be a boolean, and the resul will also be a boolean.
 		case parser.UNOP_LOG_NOT:
 			v.AddSimpleIsConstraint(id, &TypeReference{BaseType: PRIMITIVE_bool})
 			v.AddSimpleIsConstraint(ann.Id, &TypeReference{BaseType: PRIMITIVE_bool})
 
-		// If we're dealing with a bitwise not, the type will be the same type
+		// 如果是比特非操作符"~"，则表达式的返回值类型应当与单边表达式返回类型相同
 		// as the expression acted upon.
 		case parser.UNOP_BIT_NOT:
 			v.AddEqualsConstraint(ann.Id, id)
 
-		// If we're dealing with a arithmetic negation, the type will be the
+		// 如果是数值负号"-"，则同上
 		// same type as the expression acted upon.
 		case parser.UNOP_NEGATIVE:
 			v.AddEqualsConstraint(ann.Id, id)
 
 		}
 
-	case *CallExpr:
+	case *CallExpr: // 函数调用表达式
+		log.Debugln("inference", "[Handling CallEXpr typed: %s", typed.String())
+		// 先处理它的函数表达式
 		fnId := v.HandleExpr(typed.Function)
+		// 如果函数声明了类型
 		if typed.Function.GetType() != nil {
+			// 如果它的声明类型确实是函数类型
 			ft, ok := typed.Function.GetType().BaseType.ActualType().(FunctionType)
 			if ok {
+				// 判断实参的数目是否与函数声明数目一致
 				if len(typed.Arguments) < len(ft.Parameters) {
 					v.errPos(typed.Pos(), "Call has too few arguments, want %d, has %d",
 						len(ft.Parameters), len(typed.Arguments))
 				}
 
+				// 如果没有泛型参数
 				if len(ft.GenericParameters) == 0 {
+					// 遍历处理所有实参表达式
 					for idx, arg := range typed.Arguments {
 						id := v.HandleExpr(arg)
 						if idx >= len(ft.Parameters) {
 							continue
 						}
+						// 添加条件：实参表达式的类型应当与函数声明中的形参类型相同
 						v.AddSimpleIsConstraint(id, ft.Parameters[idx])
 					}
+					// 函数的返回值类型应当与整个调用表达式的返回类型相同
 					v.AddSimpleIsConstraint(ann.Id, ft.Return)
+					// 跳出
 					break
 				}
 			}
 		}
 
+		// 如果函数没有声明类型，需要对类型进行推导：
+
+		// 如果调用函数有接收对象，则处理接收对象的表达式
 		recieverId := -1
 		if typed.ReceiverAccess != nil {
 			recieverId = v.HandleExpr(typed.ReceiverAccess)
 		}
 
+		log.Debugln("inference", "receiverid: %v", recieverId)
+
+		// 分别处理每个实参
 		argIds := make([]int, len(typed.Arguments))
 		for idx, arg := range typed.Arguments {
 			argIds[idx] = v.HandleExpr(arg)
 		}
 
+		// 根据前面得到的类型变量ID，包括调用表达式ann.Id、各个实参的类型Id，构造出一个函数类型声明，用于后面的推导
 		// Construct a function type containing the generated type variables.
 		// This will be used to infer the types of the arguments.
 		fnType := FunctionType{Return: &TypeReference{BaseType: TypeVariable{Id: ann.Id}}}
@@ -771,9 +803,10 @@ func (v *Inferrer) HandleTyped(pos lexer.Position, typed Typed) int {
 		for _, argId := range argIds {
 			fnType.Parameters = append(fnType.Parameters, &TypeReference{BaseType: TypeVariable{Id: argId}})
 		}
+		// 函数表达式的类型（对应fnId），应当与根据参数列表与调用表达式构造的函数声明一致。
 		v.AddIsConstraint(fnId, &TypeReference{BaseType: fnType})
 
-	// The type of a cast will always be the type casted to.
+	// 类型转换表达式：添加条件：转换结果的类型应当与表达式类型一致
 	case *CastExpr:
 		v.HandleExpr(typed.Expr)
 		v.AddSimpleIsConstraint(ann.Id, typed.Type)
@@ -1115,6 +1148,9 @@ func (v *Inferrer) SolveStep(stackIn []*Constraint, subsIn []*Constraint, addSub
 
 			// Reciever type
 			if xFunc.Receiver != nil {
+				log.Debugln("inference", "xFunc.recxevier: %#v", xFunc.Receiver.String())
+				log.Debugln("inference", "xFunc: %#v, yFunc: %#v", xFunc, yFunc)
+				log.Debugln("inference", "x: %#v, y: %#v", x.String(), y.String())
 				stack = append(stack, ConstraintFromTypes(xFunc.Receiver, yFunc.Receiver))
 			}
 

@@ -9,51 +9,6 @@ import (
 	"github.com/ku-lang/ku/semantic"
 )
 
-// TODO: Move this at a file and handle locating/specifying this file
-const RuntimeSource = `
-[C] fun printf(fmt ^u8, ...) int;
-[C] fun exit(code C::int);
-
-pub fun panic(message string) {
-	if len(message) == 0 {
-		C::printf(c"\n")
-	} else {
-		C::printf(c"panic: %.*s\n", len(message), &message[0])
-	}
-	C::exit(-1)
-}
-
-pub type Option enum<T> {
-    Some(T),
-    None,
-}
-
-pub fun Option<T>.unwrap() T {
-    match this {
-        Some(t) => return t,
-        None => panic("Option.unwrap: expected Some, have None"),
-    }
-
-    let a T
-    return a
-}
-
-type RawArray struct {
-    size uint,
-    ptr uintptr,
-}
-
-pub fun makeArray<T>(ptr ^T, size uint) []T {
-	let raw = RawArray{size: size, ptr: uintptr(ptr)}
-	return @(^[]T)(uintptr(^raw))
-}
-
-pub fun breakArray<T>(arr []T) (uint, ^T) {
-	let raw = @(^RawArray)(uintptr(^arr))
-	return (raw.size, (^T)(raw.ptr))
-}
-`
-
 // LoadRuntime 加载运行时
 func LoadRuntime() *ast.Module {
 	runtimeModule := &ast.Module{

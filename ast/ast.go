@@ -178,6 +178,9 @@ type Function struct {
 func (v Function) String() string {
 	s := NewASTStringer("Function")
 	s.AddAttrs(v.Type.Attrs())
+	if v.Receiver != nil {
+		s.AddString(v.Receiver.String())
+	}
 	s.AddString(v.Type.GenericParameters.String())
 	s.AddString(v.Name)
 	for _, par := range v.Parameters {

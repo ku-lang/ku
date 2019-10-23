@@ -32,14 +32,14 @@
 
 ```go
 // 引入标准库的io模块
-use std::io
+use std.io
 
 // 声明C语言外部函数
 [C] fun printf(fmt ^u8, ...)  int;
 
 // 最简单的函数定义
 fun hello() {
-  io::println("hello world")
+  io.println("hello world")
 }
 
 // 定义有输入和输出参数的函数
@@ -64,21 +64,21 @@ pub fun main() int {
   hello()
 
   // 标准库函数调用
-  io::println("Hello, World!")
+  io.println("Hello, World!")
 
   // 直接调用C语言函数
-  C::printf(c"%s,%s\n", c"abc", c"def")
+  C.printf(c"%s,%s\n", c"abc", c"def")
 
   // let关键字用于声明一个值。喾语言的值默认是不可修改的。
   let a = 2
   // a = 3 // ERROR! value a is immutable
-  io::printInt(add(a, 5))
+  io.printInt(add(a, 5))
 
   // var关键字用于声明一个变量。变量可以修改。
   var i = "abc"
-  io::println(i)
+  io.println(i)
   i = "def"
-  io::println(i)
+  io.println(i)
 
   // if语句
   if a > 1 {
@@ -91,13 +91,13 @@ pub fun main() int {
   // for 循环。注：现在只支持最简单的for循环（相当于while循环），未来会加上 `for x in xs` 的形式
   var n = 0
   for n < len(xs) {
-    io::println(xs[n])
+    io.println(xs[n])
     n += 1
   }
 
   // 自定义类型及方法
   let c  = Cat{name: "mew", age: 8}
-  io::println(c.getAge())
+  io.println(c.getAge())
 
   return 0
 

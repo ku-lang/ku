@@ -149,6 +149,18 @@ func (v *Context) Build(output string, outputType codegen.OutputType, usedCodege
 		os.Exit(1)
 	}
 
+	// debug：打印parse的AST树
+	for _, module := range v.modules {
+		for _, submod := range module.Parts {
+			// 打印AST
+			log.Debugln("main", "AST of submodule `%s/%s`:", module.Name, submod.File.Name)
+			for _, node := range submod.Nodes {
+				log.Debugln("main", "%s", node.String())
+			}
+			log.Debugln("main", "")
+		}
+	}
+
 	// 类型推导
 	log.Timed("inference phase", "", func() {
 		for _, module := range v.modules {

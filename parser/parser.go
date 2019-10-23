@@ -438,7 +438,7 @@ func (v *parser) parseFunc(lambda bool, topLevelNode bool) *FunctionNode {
 	defer un(trace(v, "func"))
 
 	// 函数头
-	funcHeader := v.parseFuncHeader(lambda)
+	funcHeader := v.parseFunHeader(lambda)
 	if funcHeader == nil {
 		return nil
 	}
@@ -482,7 +482,7 @@ func (v *parser) parseFunc(lambda bool, topLevelNode bool) *FunctionNode {
 }
 
 // If lambda is true, don't parse name and set Anonymous to true.
-func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
+func (v *parser) parseFunHeader(lambda bool) *FunctionHeaderNode {
 	defer un(trace(v, "funcheader"))
 
 	// 函数头必须以fun关键字开头。
@@ -531,7 +531,7 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 					if v.tokenMatches(0, lexer.Separator, ".") { // 后面还有 ".name" 的形式
 						res.StaticReceiverType = typ
 						v.expect(lexer.Separator, ".")
-					} else if v.tokenMatches(0, lexer.Separator, "(") { // 已经解析到了"("说明解析过头了，把名字也包含进类型了
+					} else if v.tokenMatches(0, lexer.Separator, "(") || v.tokenMatches(0, lexer.Operator, "<") { // 已经解析到了"("说明解析过头了，把名字也包含进类型了
 						if len(typ.Name.Modules) == 0 { // 只解析出了一个名字，在static情况下应该是错误的
 							v.expect(lexer.Separator, ".")
 						} else { // 从typ里退出一个名字来作为函数名
@@ -607,6 +607,8 @@ func (v *parser) parseFuncHeader(lambda bool) *FunctionHeaderNode {
 				}
 			}
 		}
+
+		log.Debugln("parser", "parsed now: %#v", res)
 
 		if name == nil {
 			// 函数名
@@ -1708,7 +1710,7 @@ func (v *parser) parseInterfaceType() *InterfaceTypeNode {
 			break
 		}
 
-		function := v.parseFuncHeader(false)
+		function := v.parseFunHeader(false)
 		if function != nil {
 			// TODO trailing comma
 			v.expect(lexer.Separator, ",")
