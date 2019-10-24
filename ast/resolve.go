@@ -594,7 +594,7 @@ func (v *Resolver) ResolveNode(node *Node) {
 			}
 			if wrap != nil {
 				n.Function = wrap
-				n.ReceiverAccess = vae
+				n.ReceiverAccess = wrap.Struct
 			}
 
 			log.Debugln("resolve", "checking callexpr:%#v", n.Function)
