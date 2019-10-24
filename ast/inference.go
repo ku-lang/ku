@@ -785,7 +785,7 @@ func (v *Inferrer) HandleTyped(pos lexer.Position, typed Typed) int {
 			recieverId = v.HandleExpr(typed.ReceiverAccess)
 		}
 
-		log.Debugln("inference", "receiverid: %v", recieverId)
+		log.Debugln("inference", "receiverid: %v, fnId: %v", recieverId, fnId)
 
 		// 分别处理每个实参
 		argIds := make([]int, len(typed.Arguments))
@@ -804,6 +804,9 @@ func (v *Inferrer) HandleTyped(pos lexer.Position, typed Typed) int {
 			fnType.Parameters = append(fnType.Parameters, &TypeReference{BaseType: TypeVariable{Id: argId}})
 		}
 		// 函数表达式的类型（对应fnId），应当与根据参数列表与调用表达式构造的函数声明一致。
+		if rightT, ok := fnType.ActualType().(FunctionType); ok {
+			log.Debugln("inference", "adding Constraint fro funID:%d, left: %#v, right: %#v", fnId, fnId, rightT)
+		}
 		v.AddIsConstraint(fnId, &TypeReference{BaseType: fnType})
 
 	// 类型转换表达式：添加条件：转换结果的类型应当与表达式类型一致
@@ -1147,11 +1150,13 @@ func (v *Inferrer) SolveStep(stackIn []*Constraint, subsIn []*Constraint, addSub
 			}
 
 			// Reciever type
-			if xFunc.Receiver != nil {
+			if xFunc.Receiver != nil && yFunc.Receiver != nil {
+				stack = append(stack, ConstraintFromTypes(xFunc.Receiver, yFunc.Receiver))
+			} else if xFunc.Receiver != nil || yFunc.Receiver != nil {
+				log.Errorln("inference", "!! IMPORTANT !! xFunc and yFunc should both have Receiver or neither!")
 				log.Debugln("inference", "xFunc.recxevier: %#v", xFunc.Receiver.String())
 				log.Debugln("inference", "xFunc: %#v, yFunc: %#v", xFunc, yFunc)
 				log.Debugln("inference", "x: %#v, y: %#v", x.String(), y.String())
-				stack = append(stack, ConstraintFromTypes(xFunc.Receiver, yFunc.Receiver))
 			}
 
 			// Return type
