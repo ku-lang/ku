@@ -1150,6 +1150,10 @@ func (v *Inferrer) SolveStep(stackIn []*Constraint, subsIn []*Constraint, addSub
 			}
 
 			// Reciever type
+			// if xFunc.Receiver != nil {
+			// stack = append(stack, ConstraintFromTypes(xFunc.Receiver, yFunc.Receiver))
+			// }
+			// TODO: Ark used to check when only xFunc.Receiver != nil
 			if xFunc.Receiver != nil && yFunc.Receiver != nil {
 				stack = append(stack, ConstraintFromTypes(xFunc.Receiver, yFunc.Receiver))
 			} else if xFunc.Receiver != nil || yFunc.Receiver != nil {

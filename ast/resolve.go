@@ -196,17 +196,17 @@ func (v *Resolver) tryGetIdent(loc Locatable, name UnresolvedName) *Ident {
 	}
 
 	if ident == nil {
-		log.Errorln("resolve", "Cannot resolve `%s`", name.String())
+		log.Debugln("resolve", "Cannot resolve `%s`", name.String())
 		return nil
 	}
 
 	if !ident.Public && ident.Scope.Module != v.module {
-		log.Errorln("resolve", "Cannot access private identifier `%s`", name)
+		log.Debugln("resolve", "Cannot access private identifier `%s`", name)
 	}
 
 	// make sure lambda can't access variables of enclosing function
 	if ident.Scope.Function != nil && v.currentFunction() != ident.Scope.Function {
-		log.Errorln("resolve", "Cannot access local identifier `%s` from lambda", name)
+		log.Debugln("resolve", "Cannot access local identifier `%s` from lambda", name)
 	}
 
 	return ident
